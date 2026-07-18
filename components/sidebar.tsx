@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Building2, Home, Users, Settings, LogOut, LayoutDashboard } from 'lucide-react'
+import { Building2, Home, Users, LogOut, LayoutDashboard, Star } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -27,6 +27,7 @@ export function Sidebar() {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Developers', href: '/cms/developers', icon: Users },
     { name: 'Projects', href: '/cms/projects', icon: LayoutDashboard },
+    { name: 'Amenities', href: '/cms/amenities', icon: Star },
   ]
 
   return (

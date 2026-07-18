@@ -59,19 +59,28 @@ enum ProjectStatus {
 }
 
 model Project {
-  id             Int           @id @default(autoincrement())
+  id             Int               @id @default(autoincrement())
   name           String
-  description    String?       @db.Text
+  description    String?           @db.Text
   address        String
   city           String
-  status         ProjectStatus @default(PLANNING)
+  country        String            @default("Georgia")
+  latitude       Float?
+  longitude      Float?
+  status         ProjectStatus     @default(PLANNING)
+  isPublished    Boolean           @default(false)
   completionDate DateTime?
+  startingPrice  Decimal?          @db.Decimal(15, 2)
+  roi            Float?            // Return on Investment %
   coverImageUrl  String?
   developerId    Int
-  developer      Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  developer      Developer         @relation(fields: [developerId], references: [id], onDelete: Cascade)
   units          Unit[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  amenities      ProjectAmenity[]
+  paymentPlans   PaymentPlan[]
+  media          Media[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([developerId])
 }
@@ -105,8 +114,73 @@ model Unit {
   status         UnitStatus @default(AVAILABLE)
   floorPlanUrl   String?
   view           String?
+  floor          Int?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+
+  @@index([projectId])
+}
+
+enum AmenityCategory {
+  RECREATION
+  WELLNESS
+  SECURITY
+  CONNECTIVITY
+  TRANSPORT
+  RETAIL
+  OTHER
+}
+
+model Amenity {
+  id        Int               @id @default(autoincrement())
+  name      String            @unique
+  icon      String?           // Lucide icon name or emoji
+  category  AmenityCategory   @default(OTHER)
+  projects  ProjectAmenity[]
+}
+
+model ProjectAmenity {
+  projectId  Int
+  amenityId  Int
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, amenityId])
+}
+
+model PaymentPlan {
+  id          Int      @id @default(autoincrement())
+  name        String   // e.g. "40/60", "5% monthly"
+  description String?  @db.Text
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  schedule    Json     // Array of { label, percentage, dueDays }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+enum MediaType {
+  IMAGE
+  FLOOR_PLAN
+  BROCHURE
+  VIDEO
+  MASTER_PLAN
+  DOCUMENT
+}
+
+model Media {
+  id          Int       @id @default(autoincrement())
+  projectId   Int
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type        MediaType
+  url         String
+  name        String?
+  size        Int?      // file size in bytes
+  mimeType    String?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
 
   @@index([projectId])
 }
