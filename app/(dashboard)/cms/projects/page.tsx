@@ -1,9 +1,10 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
+import { Plus, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import Link from 'next/link'
 
 export default function ProjectsPage() {
   const { data: projects, isLoading } = useQuery({
@@ -53,7 +54,11 @@ export default function ProjectsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="text-neutral-500">Edit</Button>
+                      <Link href={`/cms/projects/${project.id}`}>
+                        <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-red-600">
+                          <Eye className="w-4 h-4 mr-1" /> View
+                        </Button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
