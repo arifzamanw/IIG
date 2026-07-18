@@ -39,3 +39,38 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+model Developer {
+  id          Int       @id @default(autoincrement())
+  name        String
+  logoUrl     String?
+  description String?   @db.Text
+  website     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  projects    Project[]
+}
+
+enum ProjectStatus {
+  PLANNING
+  UNDER_CONSTRUCTION
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id             Int           @id @default(autoincrement())
+  name           String
+  description    String?       @db.Text
+  address        String
+  city           String
+  status         ProjectStatus @default(PLANNING)
+  completionDate DateTime?
+  coverImageUrl  String?
+  developerId    Int
+  developer      Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([developerId])
+}
