@@ -1,0 +1,51 @@
+import { NextResponse } from 'next/server'
+import { ProposalService } from '@/server/services/ProposalService'
+import { generateSalesOfferHtml } from '@/server/services/SalesOfferHtmlService'
+import puppeteer from 'puppeteer'
+import path from 'path'
+import { writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
+
+export const runtime = 'nodejs'
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  let browser = null
+  try {
+    const id = Number((await params).id)
+    const proposal = await ProposalService.getById(id)
+    if (!proposal) return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
+
+    // Generate HTML directly server-side — no browser navigation needed, bypasses auth
+    const html = generateSalesOfferHtml(proposal)
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    })
+    const page = await browser.newPage()
+
+    // Set content directly instead of navigating to URL (bypasses auth middleware)
+    await page.setContent(html, { waitUntil: ['load', 'domcontentloaded'], timeout: 30000 })
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' }
+    })
+
+    // Save PDF to disk
+    const pdfDir = path.join(process.cwd(), 'public', 'uploads', 'proposals')
+    if (!existsSync(pdfDir)) await mkdir(pdfDir, { recursive: true })
+    const filename = `proposal-${id}-${Date.now()}.pdf`
+    await writeFile(path.join(pdfDir, filename), pdfBuffer)
+
+    const pdfUrl = `/uploads/proposals/${filename}`
+    await ProposalService.linkPdf(id, pdfUrl)
+
+    return NextResponse.json({ pdfUrl })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  } finally {
+    if (browser) await browser.close()
+  }
+}

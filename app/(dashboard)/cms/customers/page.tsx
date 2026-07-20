@@ -1,0 +1,140 @@
+'use client'
+
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, Trash2, Loader2, Phone, Mail, Globe } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { toast } from 'sonner'
+
+const SOURCES = ['Direct', 'Instagram', 'Facebook', 'LinkedIn', 'Referral', 'Walk-in', 'Website', 'Email', 'Other']
+
+export default function CustomersPage() {
+  const queryClient = useQueryClient()
+  const [isAdding, setIsAdding] = useState(false)
+  const [form, setForm] = useState({ name: '', email: '', phone: '', nationality: '', source: '', notes: '' })
+
+  const { data: customers = [], isLoading } = useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => (await fetch('/api/cms/customers')).json()
+  })
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/cms/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      })
+      if (!res.ok) throw new Error('Failed to create customer')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      setForm({ name: '', email: '', phone: '', nationality: '', source: '', notes: '' })
+      setIsAdding(false)
+      toast.success('Customer added')
+    },
+    onError: () => toast.error('Failed to add customer')
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/cms/customers/${id}`, { method: 'DELETE' })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success('Customer removed')
+    }
+  })
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
+          <p className="text-sm text-neutral-500 mt-1">Manage your CRM. Customers are linked to proposals.</p>
+        </div>
+        <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
+          <Plus className="w-4 h-4 mr-2" /> Add Customer
+        </Button>
+      </div>
+
+      {isAdding && (
+        <Card className="shadow-sm">
+          <CardHeader><CardTitle className="text-lg">New Customer</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1"><Label>Full Name *</Label><Input placeholder="Ahmed Al-Rashidi" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Email</Label><Input type="email" placeholder="ahmed@example.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Phone</Label><Input placeholder="+971 50 000 0000" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Nationality</Label><Input placeholder="UAE" value={form.nationality} onChange={e => setForm({ ...form, nationality: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Lead Source</Label>
+                <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-red-500">
+                  <option value="">Select source...</option>
+                  {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1"><Label>Notes</Label><Input placeholder="Any notes about this lead..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={() => createMutation.mutate()} disabled={!form.name || createMutation.isPending} className="bg-red-600 hover:bg-red-700">
+                {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Save Customer
+              </Button>
+              <Button variant="outline" onClick={() => setIsAdding(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="shadow-sm">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-neutral-400" /></div>
+          ) : customers.length === 0 ? (
+            <div className="p-8 text-center text-neutral-500">No customers yet. Add your first lead.</div>
+          ) : (
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-neutral-500 bg-neutral-50 border-b uppercase">
+                <tr>
+                  <th className="px-6 py-3">Name</th>
+                  <th className="px-6 py-3">Contact</th>
+                  <th className="px-6 py-3">Nationality</th>
+                  <th className="px-6 py-3">Source</th>
+                  <th className="px-6 py-3">Proposals</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((c: any) => (
+                  <tr key={c.id} className="bg-white border-b hover:bg-neutral-50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-neutral-900">{c.name}</td>
+                    <td className="px-6 py-4 text-neutral-600">
+                      <div className="space-y-0.5">
+                        {c.email && <div className="flex items-center gap-1 text-xs"><Mail className="w-3 h-3" />{c.email}</div>}
+                        {c.phone && <div className="flex items-center gap-1 text-xs"><Phone className="w-3 h-3" />{c.phone}</div>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-neutral-600">{c.nationality || '—'}</td>
+                    <td className="px-6 py-4">
+                      {c.source ? <span className="px-2 py-1 bg-neutral-100 text-neutral-600 text-xs rounded-full">{c.source}</span> : '—'}
+                    </td>
+                    <td className="px-6 py-4 text-neutral-600 font-medium">{c._count?.proposals || 0}</td>
+                    <td className="px-6 py-4 text-right">
+                      <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deleteMutation.mutate(c.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

@@ -1,0 +1,145 @@
+import { ProposalRepository } from '../repositories/ProposalRepository'
+import { prisma } from '@/lib/prisma'
+
+export class ProposalService {
+  static async getAll() {
+    return ProposalRepository.findAll()
+  }
+
+  static async getById(id: number) {
+    return ProposalRepository.findById(id)
+  }
+
+  /**
+   * Creates a proposal with a full data snapshot.
+   * The snapshot freezes all project/unit data at the time of creation.
+   */
+  static async create(data: {
+    customerId: number
+    unitId: number
+    createdById: number
+    customPrice?: number
+    discountPercent?: number
+    notes?: string
+    customerMessage?: string
+    selectedImages?: string[]
+    selectedFloors?: string[]
+    templateId?: number
+    towerBlock?: string
+    unitCondition?: string
+    paymentPlan?: { id: number, milestone: string, percentage: number, date: string }[]
+  }) {
+    // 1. Load full unit + project + developer data for snapshot
+    const unit = await prisma.unit.findUnique({
+      where: { id: data.unitId },
+      include: {
+        project: {
+          include: {
+            developer: true,
+            amenities: { include: { amenity: true } },
+            paymentPlans: true,
+            media: true
+          }
+        }
+      }
+    })
+
+    if (!unit) throw new Error('Unit not found')
+    if (!unit.project.isPublished) throw new Error('This project is not published')
+
+    // 2. Build immutable snapshot
+    const snapshot = {
+      unit: {
+        id: unit.id,
+        unitNumber: unit.unitNumber,
+        type: unit.type,
+        bedrooms: unit.bedrooms,
+        bathrooms: unit.bathrooms,
+        size: Number(unit.size),
+        price: Number(unit.price),
+        currency: unit.currency,
+        view: unit.view,
+        floor: unit.floor,
+        status: unit.status,
+        floorPlanUrl: unit.floorPlanUrl,
+        towerBlock: data.towerBlock,
+        condition: data.unitCondition,
+      },
+      project: {
+        id: unit.project.id,
+        name: unit.project.name,
+        description: unit.project.description,
+        address: unit.project.address,
+        city: unit.project.city,
+        country: unit.project.country,
+        status: unit.project.status,
+        completionDate: unit.project.completionDate,
+        startingPrice: unit.project.startingPrice ? Number(unit.project.startingPrice) : null,
+        roi: unit.project.roi,
+        coverImageUrl: unit.project.coverImageUrl,
+      },
+      developer: {
+        id: unit.project.developer.id,
+        name: unit.project.developer.name,
+        logoUrl: unit.project.developer.logoUrl,
+        website: unit.project.developer.website,
+      },
+      amenities: unit.project.amenities.map(pa => pa.amenity.name),
+      paymentPlans: unit.project.paymentPlans.map(pp => ({ name: pp.name, description: pp.description })),
+      customPaymentPlan: data.paymentPlan || [],
+      media: unit.project.media.map(m => ({ url: m.url, type: m.type, name: m.name })),
+      snapshotAt: new Date().toISOString()
+    }
+
+    return ProposalRepository.create({ ...data, snapshot })
+  }
+
+  static async updateStatus(id: number, status: string) {
+    return ProposalRepository.updateStatus(id, status)
+  }
+
+  static async linkPdf(id: number, pdfUrl: string) {
+    return ProposalRepository.updatePdf(id, pdfUrl)
+  }
+
+  static async update(id: number, data: {
+    customPrice?: number | null
+    discountPercent?: number | null
+    customerMessage?: string
+    notes?: string
+    selectedImages?: string[]
+    towerBlock?: string
+    unitCondition?: string
+    paymentPlan?: { id: number, milestone: string, percentage: number, date: string }[]
+  }) {
+    // Load current proposal to mutate snapshot
+    const current = await ProposalRepository.findById(id)
+    if (!current) throw new Error('Proposal not found')
+
+    const snap = current.snapshot as any
+
+    // Merge tower/condition/paymentPlan into snapshot
+    const updatedSnapshot = {
+      ...snap,
+      unit: {
+        ...snap.unit,
+        towerBlock: data.towerBlock ?? snap.unit?.towerBlock,
+        condition: data.unitCondition ?? snap.unit?.condition,
+      },
+      customPaymentPlan: data.paymentPlan ?? snap.customPaymentPlan ?? [],
+    }
+
+    return ProposalRepository.update(id, {
+      customPrice: data.customPrice ?? undefined,
+      discountPercent: data.discountPercent ?? undefined,
+      customerMessage: data.customerMessage,
+      notes: data.notes,
+      selectedImages: data.selectedImages,
+      snapshot: updatedSnapshot,
+    })
+  }
+
+  static async delete(id: number) {
+    return ProposalRepository.delete(id)
+  }
+}

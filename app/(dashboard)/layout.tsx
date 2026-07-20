@@ -1,18 +1,38 @@
 import { Sidebar } from '@/components/sidebar'
+import { Bell, Search, User } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-neutral-50">
-      <Sidebar />
+    <div className="flex h-screen bg-[#F4F7FE] overflow-hidden p-4">
+      {/* Sidebar Container - Modern floating look */}
+      <div className="h-full">
+        <Sidebar />
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-y-auto">
-        {/* Mobile Header */}
-        <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-6 md:hidden">
-          <span className="font-bold text-lg tracking-tight">Invest Georgia</span>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Top Header */}
+        <header className="h-20 flex items-center justify-between px-8 bg-transparent">
+          <div className="flex-1" />
+          {/* Right Header Actions */}
+          <div className="flex items-center gap-4">
+            <button className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-500 hover:text-neutral-900 shadow-sm transition-colors">
+              <Bell className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-3 bg-white pl-2 pr-4 py-1.5 rounded-full shadow-sm cursor-pointer hover:bg-neutral-50 transition-colors">
+              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="hidden md:block">
+                <p className="text-sm font-bold text-neutral-900 leading-none">Admin User</p>
+                <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-wider font-semibold">Super Administrator</p>
+              </div>
+            </div>
+          </div>
         </header>
         
-        <div className="flex-1 p-8">
+        {/* Page Content */}
+        <div className="flex-1 px-8 pb-8 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </main>

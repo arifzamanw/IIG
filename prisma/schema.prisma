@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -7,15 +8,19 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  roleId    Int
-  role      Role     @relation(fields: [roleId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  sessions  Session[]
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  password      String
+  name          String
+  phone         String?
+  isActive      Boolean        @default(true)
+  roleId        Int
+  role          Role           @relation(fields: [roleId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  proposals     Proposal[]
+  activityLogs  ActivityLog[]
 }
 
 model Role {
@@ -183,4 +188,91 @@ model Media {
   createdAt   DateTime  @default(now())
 
   @@index([projectId])
+}
+
+// ─── CUSTOMERS ───────────────────────────────────────────
+
+model Customer {
+  id          Int        @id @default(autoincrement())
+  name        String
+  email       String?
+  phone       String?
+  nationality String?
+  source      String?    // e.g. "Instagram", "Referral", "Walk-in"
+  notes       String?    @db.Text
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  proposals   Proposal[]
+}
+
+// ─── PROPOSALS ───────────────────────────────────────────
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+}
+
+model Proposal {
+  id              Int            @id @default(autoincrement())
+  customerId      Int
+  customer        Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  unitId          Int
+  createdById     Int
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  status          ProposalStatus @default(DRAFT)
+  
+  // Snapshot of project/unit data at proposal creation time (immutable)
+  snapshot        Json
+  
+  // Sales customizations
+  customPrice     Decimal?       @db.Decimal(15, 2)
+  discountPercent Float?
+  notes           String?        @db.Text
+  customerMessage String?        @db.Text
+  selectedImages  Json?          // Array of Media URLs chosen by salesperson
+  selectedFloors  Json?          // Array of floor plan URLs
+  
+  pdfUrl          String?        // Path to generated PDF
+  pdfGeneratedAt  DateTime?
+  
+  templateId      Int?
+  template        ProposalTemplate? @relation(fields: [templateId], references: [id])
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([customerId])
+  @@index([createdById])
+  @@index([unitId])
+}
+
+// ─── ACTIVITY LOGS ────────────────────────────────────────
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  action     String   // e.g. "CREATE", "UPDATE", "DELETE"
+  entity     String   // e.g. "Project", "Unit", "Proposal"
+  entityId   Int?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+}
+
+// ─── PROPOSAL TEMPLATES ───────────────────────────────────
+
+model ProposalTemplate {
+  id          Int        @id @default(autoincrement())
+  name        String
+  content     String     @db.LongText
+  isDefault   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  proposals   Proposal[]
 }

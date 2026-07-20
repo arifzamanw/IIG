@@ -35,6 +35,7 @@ export default function ProjectDetailPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [showAddUnit, setShowAddUnit] = useState(false)
+  const [editingUnit, setEditingUnit] = useState<any>(null)
   const [showAddPlan, setShowAddPlan] = useState(false)
   const [mediaType, setMediaType] = useState('IMAGE')
   const [uploading, setUploading] = useState(false)
@@ -143,15 +144,41 @@ export default function ProjectDetailPage() {
     }
   })
 
+  const togglePublishMutation = useMutation({
+    mutationFn: async (currentlyPublished: boolean) => {
+      const res = await fetch(`/api/cms/projects/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublished: !currentlyPublished })
+      })
+      if (!res.ok) throw new Error('Failed to update project status')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', id] })
+      toast.success('Project visibility updated')
+    }
+  })
+
   // -- Unit add form state --
   const { register: regUnit, handleSubmit: handleUnit, reset: resetUnit } = useForm()
 
   const createUnitMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch('/api/cms/units', {
-        method: 'POST',
+      const payload = {
+        ...data,
+        projectId: Number(id),
+        bedrooms: Number(data.bedrooms),
+        bathrooms: Number(data.bathrooms),
+        size: Number(data.size),
+        price: Number(data.price),
+        floor: data.floor ? Number(data.floor) : undefined,
+        status: data.status || 'AVAILABLE'
+      }
+      
+      const res = await fetch(editingUnit ? `/api/cms/units/${editingUnit.id}` : '/api/cms/units', {
+        method: editingUnit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, projectId: Number(id), bedrooms: Number(data.bedrooms), bathrooms: Number(data.bathrooms), size: Number(data.size), price: Number(data.price), floor: data.floor ? Number(data.floor) : undefined })
+        body: JSON.stringify(payload)
       })
       if (!res.ok) throw new Error('Failed')
     },
@@ -159,9 +186,27 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['units', id] })
       resetUnit()
       setShowAddUnit(false)
-      toast.success('Unit added')
+      setEditingUnit(null)
+      toast.success(editingUnit ? 'Unit updated' : 'Unit added')
     }
   })
+
+  const openEditUnit = (unit: any) => {
+    setEditingUnit(unit)
+    resetUnit({
+      unitNumber: unit.unitNumber,
+      type: unit.type,
+      status: unit.status,
+      view: unit.view || '',
+      bedrooms: unit.bedrooms,
+      bathrooms: unit.bathrooms,
+      floor: unit.floor || '',
+      size: unit.size,
+      price: unit.price,
+      floorPlanUrl: unit.floorPlanUrl || ''
+    })
+    setShowAddUnit(true)
+  }
 
   // -- File Upload --
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,6 +293,18 @@ export default function ProjectDetailPage() {
                 </p>
               )}
             </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 md:items-center">
+              <Button 
+                variant={project?.isPublished ? 'outline' : 'default'}
+                className={!project?.isPublished ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
+                onClick={() => togglePublishMutation.mutate(project?.isPublished)}
+                disabled={togglePublishMutation.isPending}
+              >
+                {togglePublishMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {project?.isPublished ? 'Unpublish Project' : 'Publish Project'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -314,14 +371,14 @@ export default function ProjectDetailPage() {
       {activeTab === 'units' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setShowAddUnit(!showAddUnit)} className="bg-red-600 hover:bg-red-700">
+            <Button onClick={() => { setEditingUnit(null); resetUnit(); setShowAddUnit(!showAddUnit) }} className="bg-red-600 hover:bg-red-700">
               <Plus className="w-4 h-4 mr-2" /> Add Unit
             </Button>
           </div>
 
           {showAddUnit && (
-            <Card className="shadow-sm">
-              <CardHeader><CardTitle className="text-lg">New Unit</CardTitle></CardHeader>
+            <Card className="shadow-sm border-red-100">
+              <CardHeader><CardTitle className="text-lg">{editingUnit ? 'Edit Unit' : 'New Unit'}</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={handleUnit((data) => createUnitMutation.mutate(data))} className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -333,7 +390,7 @@ export default function ProjectDetailPage() {
                       </select>
                     </div>
                     <div className="space-y-1"><Label>Status</Label>
-                      <select {...regUnit('status')} className="flex h-9 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-red-500">
+                      <select {...regUnit('status')} defaultValue="AVAILABLE" className="flex h-9 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-red-500">
                         <option value="AVAILABLE">Available</option>
                         <option value="RESERVED">Reserved</option>
                         <option value="SOLD">Sold</option>
@@ -341,18 +398,19 @@ export default function ProjectDetailPage() {
                     </div>
                     <div className="space-y-1"><Label>View</Label><Input placeholder="Sea View" {...regUnit('view')} /></div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div className="space-y-1"><Label>Bedrooms *</Label><Input type="number" min={0} {...regUnit('bedrooms', { required: true })} /></div>
                     <div className="space-y-1"><Label>Bathrooms *</Label><Input type="number" min={0} {...regUnit('bathrooms', { required: true })} /></div>
                     <div className="space-y-1"><Label>Floor</Label><Input type="number" min={0} {...regUnit('floor')} /></div>
                     <div className="space-y-1"><Label>Size (m²) *</Label><Input type="number" step="0.01" {...regUnit('size', { required: true })} /></div>
                     <div className="space-y-1"><Label>Price (USD) *</Label><Input type="number" step="0.01" {...regUnit('price', { required: true })} /></div>
+                    <div className="space-y-1 md:col-span-2 lg:col-span-1"><Label>Floor Plan URL</Label><Input placeholder="https://..." {...regUnit('floorPlanUrl')} /></div>
                   </div>
                   <div className="flex gap-3">
                     <Button type="submit" disabled={createUnitMutation.isPending} className="bg-red-600 hover:bg-red-700">
-                      {createUnitMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Save Unit
+                      {createUnitMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} {editingUnit ? 'Update Unit' : 'Save Unit'}
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => { setShowAddUnit(false); resetUnit() }}>Cancel</Button>
+                    <Button type="button" variant="outline" onClick={() => { setShowAddUnit(false); setEditingUnit(null); resetUnit() }}>Cancel</Button>
                   </div>
                 </form>
               </CardContent>
@@ -380,15 +438,21 @@ export default function ProjectDetailPage() {
                   <tbody>
                     {units.map((unit: any) => (
                       <tr key={unit.id} className="bg-white border-b hover:bg-neutral-50 transition-colors">
-                        <td className="px-6 py-4 font-medium">{unit.unitNumber}</td>
+                        <td className="px-6 py-4 font-medium">
+                          {unit.unitNumber}
+                          {unit.floorPlanUrl && <a href={unit.floorPlanUrl} target="_blank" rel="noreferrer" className="block text-[10px] text-blue-600 hover:underline mt-1">View Plan</a>}
+                        </td>
                         <td className="px-6 py-4 capitalize text-neutral-600">{unit.type.toLowerCase()}</td>
                         <td className="px-6 py-4 text-neutral-600">{unit.floor ?? '—'}</td>
                         <td className="px-6 py-4 text-neutral-600">{unit.bedrooms} / {unit.bathrooms}</td>
                         <td className="px-6 py-4 text-neutral-600">{Number(unit.size).toLocaleString()}</td>
                         <td className="px-6 py-4 font-medium">{Number(unit.price).toLocaleString()} {unit.currency}</td>
                         <td className="px-6 py-4"><span className={`px-2 py-1 text-xs rounded-full font-medium ${UNIT_STATUS_COLORS[unit.status]}`}>{unit.status}</span></td>
-                        <td className="px-6 py-4 text-right">
-                          <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deleteUnitMutation.mutate(unit.id)}>
+                        <td className="px-6 py-4 text-right flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-blue-600 h-8 px-2" onClick={() => openEditUnit(unit)}>
+                            Edit
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-neutral-400 hover:text-red-600 h-8 px-2" onClick={() => deleteUnitMutation.mutate(unit.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </td>
