@@ -15,6 +15,7 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient()
   const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [form, setForm] = useState({
     name: '', developerId: '', address: '', city: '', country: 'Georgia', status: 'PLANNING', completionDate: '', startingPrice: '', roi: ''
@@ -36,7 +37,7 @@ export default function ProjectsPage() {
     enabled: hasPermission('Projects', 'EDIT')
   })
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
         ...form,
@@ -46,22 +47,41 @@ export default function ProjectsPage() {
         completionDate: form.completionDate ? form.completionDate : undefined,
         address: form.address || 'TBD', // default to TBD if left empty just in case
       }
-      const res = await fetch('/api/cms/projects', {
-        method: 'POST',
+      const url = editingProjectId ? `/api/cms/projects/${editingProjectId}` : '/api/cms/projects'
+      const method = editingProjectId ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      if (!res.ok) throw new Error('Failed to create project')
+      if (!res.ok) throw new Error('Failed to save project')
       return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       setForm({ name: '', developerId: '', address: '', city: '', country: 'Georgia', status: 'PLANNING', completionDate: '', startingPrice: '', roi: '' })
       setIsAdding(false)
-      toast.success('Project created successfully!')
+      setEditingProjectId(null)
+      toast.success(editingProjectId ? 'Project updated successfully!' : 'Project created successfully!')
     },
-    onError: () => toast.error('Failed to create project')
+    onError: () => toast.error('Failed to save project')
   })
+
+  const openEdit = (project: any) => {
+    setEditingProjectId(project.id)
+    setForm({
+      name: project.name || '',
+      developerId: project.developerId?.toString() || '',
+      address: project.address || '',
+      city: project.city || '',
+      country: project.country || 'Georgia',
+      status: project.status || 'PLANNING',
+      completionDate: project.completionDate ? new Date(project.completionDate).toISOString().split('T')[0] : '',
+      startingPrice: project.startingPrice?.toString() || '',
+      roi: project.roi?.toString() || ''
+    })
+    setIsAdding(true)
+  }
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
@@ -110,7 +130,7 @@ export default function ProjectsPage() {
             </Button>
           )}
           {canEdit && (
-            <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
+            <Button onClick={() => { setEditingProjectId(null); setForm({ name: '', developerId: '', address: '', city: '', country: 'Georgia', status: 'PLANNING', completionDate: '', startingPrice: '', roi: '' }); setIsAdding(!isAdding) }} className="bg-red-600 hover:bg-red-700">
               <Plus className="w-4 h-4 mr-2" /> Add Project
             </Button>
           )}
@@ -119,7 +139,7 @@ export default function ProjectsPage() {
 
       {isAdding && canEdit && (
         <Card className="shadow-sm">
-          <CardHeader><CardTitle className="text-lg">New Project</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">{editingProjectId ? 'Edit Project' : 'New Project'}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-1"><Label>Project Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
@@ -147,10 +167,10 @@ export default function ProjectsPage() {
               <div className="space-y-1"><Label>Expected ROI (%)</Label><Input type="number" step="0.1" value={form.roi} onChange={e => setForm({ ...form, roi: e.target.value })} /></div>
             </div>
             <div className="flex gap-3">
-              <Button onClick={() => createMutation.mutate()} disabled={!form.name || !form.developerId || !form.city || !form.country || createMutation.isPending} className="bg-red-600 hover:bg-red-700">
-                {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Save Project
+              <Button onClick={() => saveMutation.mutate()} disabled={!form.name || !form.developerId || !form.city || !form.country || saveMutation.isPending} className="bg-red-600 hover:bg-red-700">
+                {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} {editingProjectId ? 'Update Project' : 'Save Project'}
               </Button>
-              <Button variant="outline" onClick={() => setIsAdding(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setIsAdding(false); setEditingProjectId(null) }}>Cancel</Button>
             </div>
           </CardContent>
         </Card>
@@ -201,11 +221,18 @@ export default function ProjectsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Link href={`/cms/projects/${project.id}`}>
-                        <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-red-600">
-                          <Eye className="w-4 h-4 mr-1" /> View
-                        </Button>
-                      </Link>
+                      <div className="flex justify-end gap-1">
+                        {canEdit && (
+                          <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-blue-600 h-8 px-2" onClick={() => openEdit(project)}>
+                            Edit
+                          </Button>
+                        )}
+                        <Link href={`/cms/projects/${project.id}`}>
+                          <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-red-600 h-8 px-2">
+                            <Eye className="w-4 h-4 mr-1" /> View
+                          </Button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -21,8 +21,8 @@ export function usePermissions() {
   const hasPermission = (moduleName: string, requiredLevel: AccessLevel): boolean => {
     if (!user || !user.role) return false
 
-    // 1. Super Admins bypass all restrictions
-    if (user.role.name === 'Super Admin') return true
+    // 1. Admins bypass all restrictions
+    if (user.role.name === 'Admin') return true
 
     // 2. Check for explicit UserModuleAccess override
     const override = user.moduleAccess?.find((ma: any) => ma.moduleName === moduleName)
@@ -32,7 +32,7 @@ export function usePermissions() {
 
     // 3. Fallback to Role-based defaults
     if (moduleName === 'Users' || moduleName === 'Settings') {
-      // Only Super Admin can access Users and Settings (unless overridden)
+      // Only Admin can access Users and Settings (unless overridden)
       return false
     }
 

@@ -16,7 +16,7 @@ export default function CustomersPage() {
   const queryClient = useQueryClient()
   const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', phone: '', nationality: '', source: '', notes: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', nationality: '', source: '', notes: '', assignedToId: '' })
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
   const { data: customers = [], isLoading } = useQuery({
@@ -29,19 +29,35 @@ export default function CustomersPage() {
     enabled: hasPermission('Customers', 'VIEW')
   })
 
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const res = await fetch('/api/cms/users')
+      if (!res.ok) throw new Error('Failed to fetch users')
+      return res.json()
+    },
+    enabled: hasPermission('Users', 'VIEW')
+  })
+
   const createMutation = useMutation({
     mutationFn: async () => {
+      const payload = { ...form }
+      if (payload.assignedToId) {
+        payload.assignedToId = Number(payload.assignedToId) as any
+      } else {
+        delete (payload as any).assignedToId
+      }
       const res = await fetch('/api/cms/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       })
       if (!res.ok) throw new Error('Failed to create customer')
       return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      setForm({ name: '', email: '', phone: '', nationality: '', source: '', notes: '' })
+      setForm({ name: '', email: '', phone: '', nationality: '', source: '', notes: '', assignedToId: '' })
       setIsAdding(false)
       toast.success('Customer added')
     },
@@ -56,6 +72,22 @@ export default function CustomersPage() {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       setSelectedIds(prev => prev.filter(selectedId => selectedId !== deleteMutation.variables))
       toast.success('Lead removed')
+    }
+  })
+
+  const assignMutation = useMutation({
+    mutationFn: async ({ id, assignedToId }: { id: number, assignedToId: number | null }) => {
+      const res = await fetch(`/api/cms/customers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToId })
+      })
+      if (!res.ok) throw new Error('Failed to assign lead')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success('Lead assigned')
     }
   })
 
@@ -132,6 +164,15 @@ export default function CustomersPage() {
                   {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+              {hasPermission('Users', 'VIEW') && (
+                <div className="space-y-1"><Label>Assign To</Label>
+                  <select value={form.assignedToId} onChange={e => setForm({ ...form, assignedToId: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-red-500">
+                    <option value="">Unassigned</option>
+                    {users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1"><Label>Notes</Label><Input placeholder="Any notes about this lead..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
             <div className="flex gap-3">
@@ -166,6 +207,7 @@ export default function CustomersPage() {
                   <th className="px-6 py-3">Contact</th>
                   <th className="px-6 py-3">Nationality</th>
                   <th className="px-6 py-3">Source</th>
+                  {hasPermission('Users', 'VIEW') && <th className="px-6 py-3">Assigned To</th>}
                   <th className="px-6 py-3">Proposals</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -192,6 +234,19 @@ export default function CustomersPage() {
                     <td className="px-6 py-4">
                       {c.source ? <span className="px-2 py-1 bg-neutral-100 text-neutral-600 text-xs rounded-full">{c.source}</span> : '—'}
                     </td>
+                    {hasPermission('Users', 'VIEW') && (
+                      <td className="px-6 py-4">
+                        <select
+                          value={c.assignedToId || ''}
+                          onChange={(e) => assignMutation.mutate({ id: c.id, assignedToId: e.target.value ? Number(e.target.value) : null })}
+                          disabled={assignMutation.isPending}
+                          className="text-xs font-semibold rounded border px-2 py-1 outline-none appearance-none cursor-pointer"
+                        >
+                          <option value="">Unassigned</option>
+                          {users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-neutral-600 font-medium">{c._count?.proposals || 0}</td>
                     <td className="px-6 py-4 text-right">
                       {canEdit ? (

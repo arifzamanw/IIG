@@ -14,7 +14,7 @@ const levelPower = {
 
 /**
  * Checks if a user has at least the required access level for a specific module.
- * Super Admins always have EDIT access.
+ * Admins always have EDIT access.
  * Marketing Team has EDIT access to everything except Users and Settings.
  * Sales Team has VIEW access to everything except Users and Settings.
  */
@@ -25,8 +25,8 @@ export function checkPermission(
 ): boolean {
   if (!user || !user.role) return false
 
-  // 1. Super Admins bypass all restrictions
-  if (user.role.name === 'Super Admin') return true
+  // 1. Admins bypass all restrictions
+  if (user.role.name === 'Admin') return true
 
   // 2. Check for explicit UserModuleAccess override
   const override = user.moduleAccess?.find((ma: any) => ma.moduleName === moduleName)
@@ -36,7 +36,7 @@ export function checkPermission(
 
   // 3. Fallback to Role-based defaults
   if (moduleName === 'Users' || moduleName === 'Settings') {
-    // Only Super Admin can access Users and Settings (unless overridden)
+    // Only Admin can access Users and Settings (unless overridden)
     return false
   }
 

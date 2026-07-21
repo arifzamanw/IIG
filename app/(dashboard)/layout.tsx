@@ -25,7 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div className="hidden md:block">
                 <p className="text-sm font-bold text-neutral-900 leading-none">Admin User</p>
-                <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-wider font-semibold">Super Administrator</p>
+                <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-wider font-semibold">Administrator</p>
               </div>
             </div>
           </div>

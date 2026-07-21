@@ -47,7 +47,7 @@ export function Sidebar() {
 
   // Default Dashboard and Proposals to always show unless we have specific rules for them.
   // Actually, we can just say if module doesn't match an existing restricted module, it falls back to Role default or we just let it pass if hasPermission allows it.
-  // Wait, for Dashboard and Proposals, `hasPermission` will return true for Super Admin, and true for Sales/Marketing because they fall under "other modules".
+  // Wait, for Dashboard and Proposals, `hasPermission` will return true for Admin, and true for Sales/Marketing because they fall under "other modules".
   
   return (
     <aside className="w-64 h-full bg-white rounded-3xl shadow-sm hidden md:flex flex-col overflow-hidden relative">
@@ -55,9 +55,6 @@ export function Sidebar() {
         <div className="flex items-center gap-2">
           <Image src="/logo-black.svg" alt="IIG Logo" width={100} height={32} className="h-8 w-auto object-contain" />
         </div>
-        <button className="ml-auto text-neutral-400 hover:text-neutral-900">
-          <PanelLeft className="w-5 h-5" />
-        </button>
       </div>
       
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-8 custom-scrollbar">

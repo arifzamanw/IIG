@@ -1,5 +1,6 @@
 import { checkPermission, AccessLevel } from '@/server/utils/permissions'
 import { getCurrentUser } from '@/server/utils/auth'
+import { isRestricted } from '@/server/utils/roles'
 import { NextResponse } from 'next/server'
 import { CustomerService } from '@/server/services/CustomerService'
 
@@ -30,6 +31,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   try {
     const id = Number((await params).id)
     const body = await request.json()
+
+    // Enforce restricted users can only edit their own, and cannot reassign
+    if (isRestricted(user)) {
+      delete body.assignedToId
+      const existing = await CustomerService.getById(id)
+      if (existing?.assignedToId !== user.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     const customer = await CustomerService.update(id, body)
     return NextResponse.json(customer)
   } catch (error: any) {

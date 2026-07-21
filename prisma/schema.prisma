@@ -192,6 +192,7 @@ enum MediaType {
   VIDEO
   MASTER_PLAN
   DOCUMENT
+  PRESENTATION
 }
 
 model Media {

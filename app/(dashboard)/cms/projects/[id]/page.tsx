@@ -27,7 +27,7 @@ const UNIT_STATUS_COLORS: Record<string, string> = {
   SOLD: 'bg-red-50 text-red-700',
 }
 
-const MEDIA_TABS = ['IMAGE', 'FLOOR_PLAN', 'BROCHURE', 'MASTER_PLAN', 'DOCUMENT']
+const MEDIA_TABS = ['IMAGE', 'FLOOR_PLAN', 'BROCHURE', 'MASTER_PLAN', 'DOCUMENT', 'PRESENTATION']
 
 type Tab = 'overview' | 'units' | 'amenities' | 'payment-plans' | 'media'
 
@@ -41,6 +41,7 @@ export default function ProjectDetailPage() {
   const [showAddPlan, setShowAddPlan] = useState(false)
   const [mediaType, setMediaType] = useState('IMAGE')
   const [uploading, setUploading] = useState(false)
+  const [unitFloorPlanUploading, setUnitFloorPlanUploading] = useState(false)
   const [planName, setPlanName] = useState('')
   const [planDesc, setPlanDesc] = useState('')
   const [planSchedule, setPlanSchedule] = useState<{label: string, percentage: string, dueDays: string}[]>([])
@@ -172,7 +173,7 @@ export default function ProjectDetailPage() {
   })
 
   // -- Unit add form state --
-  const { register: regUnit, handleSubmit: handleUnit, reset: resetUnit } = useForm()
+  const { register: regUnit, handleSubmit: handleUnit, reset: resetUnit, setValue: setUnitValue } = useForm()
 
   const createUnitMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -218,6 +219,29 @@ export default function ProjectDetailPage() {
       floorPlanUrl: unit.floorPlanUrl || ''
     })
     setShowAddUnit(true)
+  }
+
+  const handleUnitFloorPlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUnitFloorPlanUploading(true)
+    try {
+      const file = files[0]
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'FLOOR_PLAN')
+      formData.append('projectId', id)
+      const uploadRes = await fetch('/api/uploads', { method: 'POST', body: formData })
+      if (!uploadRes.ok) throw new Error('Upload failed')
+      const { url } = await uploadRes.json()
+      setUnitValue('floorPlanUrl', url)
+      toast.success('Floor plan uploaded')
+    } catch (err: any) {
+      toast.error('Failed to upload floor plan')
+    } finally {
+      setUnitFloorPlanUploading(false)
+      e.target.value = ''
+    }
   }
 
   // -- File Upload --
@@ -430,7 +454,16 @@ export default function ProjectDetailPage() {
                     <div className="space-y-1"><Label>Floor</Label><Input type="number" min={0} {...regUnit('floor')} /></div>
                     <div className="space-y-1"><Label>Size (m²) *</Label><Input type="number" step="0.01" {...regUnit('size', { required: true })} /></div>
                     <div className="space-y-1"><Label>Price (USD) *</Label><Input type="number" step="0.01" {...regUnit('price', { required: true })} /></div>
-                    <div className="space-y-1 md:col-span-2 lg:col-span-1"><Label>Floor Plan URL</Label><Input placeholder="https://..." {...regUnit('floorPlanUrl')} /></div>
+                    <div className="space-y-1 md:col-span-2 lg:col-span-1">
+                      <Label>Floor Plan URL</Label>
+                      <div className="flex gap-2">
+                        <Input placeholder="https://..." {...regUnit('floorPlanUrl')} className="flex-1" />
+                        <input type="file" id="unit-floor-upload" className="hidden" accept="image/*" onChange={handleUnitFloorPlanUpload} />
+                        <label htmlFor="unit-floor-upload" className="flex h-9 items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 px-3 cursor-pointer hover:bg-neutral-100 shadow-sm text-neutral-600 text-sm">
+                          {unitFloorPlanUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-3">
                     <Button type="submit" disabled={createUnitMutation.isPending} className="bg-red-600 hover:bg-red-700">

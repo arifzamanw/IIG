@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { usePermissions } from '@/hooks/usePermissions'
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT:    'bg-neutral-100 text-neutral-600 border-neutral-200',
@@ -25,10 +26,26 @@ export default function ProposalsPage() {
   const [activeStatus, setActiveStatus] = useState('ALL')
   const [search, setSearch] = useState('')
 
-  const { data: proposals = [], isLoading } = useQuery({
-    queryKey: ['proposals'],
+  const { hasPermission } = usePermissions()
+  const canViewUsers = hasPermission('Users', 'VIEW')
+
+  const [activeAgent, setActiveAgent] = useState('ALL')
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
     queryFn: async () => {
-      const res = await fetch('/api/proposals')
+      const res = await fetch('/api/cms/users')
+      if (!res.ok) throw new Error('Failed to fetch')
+      return res.json()
+    },
+    enabled: canViewUsers
+  })
+
+  const { data: proposals = [], isLoading } = useQuery({
+    queryKey: ['proposals', activeAgent],
+    queryFn: async () => {
+      const url = activeAgent !== 'ALL' ? `/api/proposals?agentId=${activeAgent}` : '/api/proposals'
+      const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to fetch')
       return res.json()
     }
@@ -57,6 +74,23 @@ export default function ProposalsPage() {
       queryClient.invalidateQueries({ queryKey: ['proposals'] })
       toast.success('Proposal deleted')
     }
+  })
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number, status: string }) => {
+      const res = await fetch(`/api/proposals/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+      if (!res.ok) throw new Error('Failed to update status')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proposals'] })
+      toast.success('Status updated')
+    },
+    onError: (e: any) => toast.error(e.message)
   })
 
   const bulkDelete = async () => {
@@ -137,6 +171,20 @@ export default function ProposalsPage() {
             </button>
           )}
         </div>
+        {canViewUsers && (
+          <div className="w-full sm:max-w-[200px]">
+            <select
+              value={activeAgent}
+              onChange={(e) => setActiveAgent(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="ALL">All Agents</option>
+              {users.map((u: any) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex gap-1.5 flex-wrap">
           {ALL_STATUSES.map(s => (
             <button
@@ -220,9 +268,16 @@ export default function ProposalsPage() {
                       </td>
                       <td className="px-5 py-4 text-neutral-600 text-sm">{p.createdBy?.name ?? '—'}</td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${STATUS_COLORS[p.status] ?? ''}`}>
-                          {p.status}
-                        </span>
+                        <select
+                          value={p.status}
+                          onChange={(e) => updateStatusMutation.mutate({ id: p.id, status: e.target.value })}
+                          disabled={updateStatusMutation.isPending}
+                          className={`text-xs font-semibold rounded-full border px-2 py-1 appearance-none cursor-pointer outline-none ${STATUS_COLORS[p.status] ?? ''}`}
+                        >
+                          {ALL_STATUSES.slice(1).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-5 py-4 text-neutral-400 text-xs whitespace-nowrap">
                         {new Date(p.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}

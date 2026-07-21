@@ -162,9 +162,16 @@ export default function ProposalDetailsPage() {
           <p className="text-sm text-neutral-500 mt-1">Created on {new Date(proposal.createdAt).toLocaleDateString()}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[proposal.status] || ''}`}>
-            {proposal.status}
-          </span>
+          <select
+            value={proposal.status}
+            onChange={(e) => updateStatusMutation.mutate(e.target.value)}
+            disabled={updateStatusMutation.isPending}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border outline-none cursor-pointer appearance-none ${STATUS_COLORS[proposal.status] || ''}`}
+          >
+            {['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED'].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <Button variant="outline" onClick={() => setIsEditing(true)}>
             <Pencil className="w-4 h-4 mr-2" /> Edit
           </Button>

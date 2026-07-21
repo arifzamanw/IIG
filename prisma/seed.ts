@@ -3,9 +3,9 @@ import bcrypt from 'bcryptjs'
 
 async function main() {
   const adminRole = await prisma.role.upsert({
-    where: { name: 'Super Admin' },
+    where: { name: 'Admin' },
     update: {},
-    create: { name: 'Super Admin' }
+    create: { name: 'Admin' }
   })
 
   const marketingRole = await prisma.role.upsert({
@@ -27,7 +27,7 @@ async function main() {
     update: {},
     create: {
       email: 'admin@investgeorgia.com',
-      name: 'Super Admin',
+      name: 'Admin',
       password,
       roleId: adminRole.id
     }
