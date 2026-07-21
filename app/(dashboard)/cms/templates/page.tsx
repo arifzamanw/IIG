@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { usePermissions } from '@/hooks/usePermissions'
 
 const DEFAULT_TEMPLATE = `<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #333;">
   <div style="text-align: center; border-bottom: 2px solid #e5e5e5; padding-bottom: 20px; margin-bottom: 30px;">
@@ -54,6 +55,7 @@ const DEFAULT_TEMPLATE = `<div style="font-family: Arial, sans-serif; max-width:
 
 export default function TemplatesPage() {
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState({ name: '', content: DEFAULT_TEMPLATE, isDefault: false })
@@ -67,7 +69,8 @@ export default function TemplatesPage() {
         throw new Error(error.error || 'Failed to fetch templates')
       }
       return res.json()
-    }
+    },
+    enabled: hasPermission('Templates', 'VIEW')
   })
 
   const saveMutation = useMutation({
@@ -111,6 +114,18 @@ export default function TemplatesPage() {
     setEditingId(null)
   }
 
+  if (permissionsLoading) return <div className="p-8 text-center text-neutral-400">Loading...</div>
+
+  if (!hasPermission('Templates', 'VIEW')) {
+    return (
+      <div className="p-8 text-center text-red-600 font-medium">
+        You do not have permission to access Templates.
+      </div>
+    )
+  }
+
+  const canEdit = hasPermission('Templates', 'EDIT')
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -118,14 +133,14 @@ export default function TemplatesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Proposal Templates</h1>
           <p className="text-sm text-neutral-500 mt-1">Manage HTML templates for your PDF proposals.</p>
         </div>
-        {!isAdding && (
+        {!isAdding && canEdit && (
           <Button onClick={() => { resetForm(); setIsAdding(true) }} className="bg-red-600 hover:bg-red-700">
             <Plus className="w-4 h-4 mr-2" /> New Template
           </Button>
         )}
       </div>
 
-      {isAdding && (
+      {isAdding && canEdit && (
         <Card className="shadow-sm border-red-100">
           <CardHeader>
             <CardTitle>{editingId ? 'Edit Template' : 'New Template'}</CardTitle>
@@ -201,12 +216,18 @@ export default function TemplatesPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(t)} className="text-neutral-500 hover:text-blue-600">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => { if(confirm('Delete template?')) deleteMutation.mutate(t.id) }} className="text-neutral-400 hover:text-red-600">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {canEdit ? (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(t)} className="text-neutral-500 hover:text-blue-600">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => { if(confirm('Delete template?')) deleteMutation.mutate(t.id) }} className="text-neutral-400 hover:text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-neutral-400 text-xs">Read-only</span>
+                        )}
                       </td>
                     </tr>
                   ))}

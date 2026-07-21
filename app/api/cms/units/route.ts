@@ -1,7 +1,15 @@
+import { checkPermission, AccessLevel } from '@/server/utils/permissions'
+import { getCurrentUser } from '@/server/utils/auth'
 import { NextResponse } from 'next/server'
 import { UnitService } from '@/server/services/UnitService'
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!checkPermission(user, 'Units', AccessLevel.EDIT)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     // Parse numeric fields

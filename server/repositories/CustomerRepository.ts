@@ -2,8 +2,9 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
 export class CustomerRepository {
-  static async findAll() {
+  static async findAll(where?: Prisma.CustomerWhereInput) {
     return prisma.customer.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { proposals: true } } }
     })
@@ -21,15 +22,23 @@ export class CustomerRepository {
     })
   }
 
-  static async search(query: string) {
-    return prisma.customer.findMany({
-      where: {
+  static async search(query: string, where?: { assignedToId?: number }) {
+    const filters: Prisma.CustomerWhereInput[] = [
+      {
         OR: [
           { name: { contains: query } },
           { email: { contains: query } },
           { phone: { contains: query } },
-        ]
-      },
+        ],
+      }
+    ];
+
+    if (where && where.assignedToId !== undefined) {
+      filters.push({ assignedToId: where.assignedToId });
+    }
+
+    return prisma.customer.findMany({
+      where: { AND: filters },
       take: 10,
       orderBy: { name: 'asc' }
     })

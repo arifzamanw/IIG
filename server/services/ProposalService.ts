@@ -1,9 +1,10 @@
+import { Prisma } from '@prisma/client'
 import { ProposalRepository } from '../repositories/ProposalRepository'
 import { prisma } from '@/lib/prisma'
 
 export class ProposalService {
-  static async getAll() {
-    return ProposalRepository.findAll()
+  static async getAll(where?: Prisma.ProposalWhereInput) {
+    return ProposalRepository.findAll(where)
   }
 
   static async getById(id: number) {

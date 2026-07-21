@@ -21,6 +21,8 @@ model User {
   sessions      Session[]
   proposals     Proposal[]
   activityLogs  ActivityLog[]
+  moduleAccess  UserModuleAccess[]
+  assignedLeads Customer[]         @relation("AssignedLeads")
 }
 
 model Role {
@@ -43,6 +45,23 @@ model Session {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+enum AccessLevel {
+  VIEW
+  EDIT
+  RESTRICTED
+}
+
+model UserModuleAccess {
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleName  String
+  accessLevel AccessLevel @default(RESTRICTED)
+
+  @@unique([userId, moduleName])
+  @@index([userId])
 }
 
 model Developer {
@@ -200,6 +219,8 @@ model Customer {
   nationality String?
   source      String?    // e.g. "Instagram", "Referral", "Walk-in"
   notes       String?    @db.Text
+  assignedToId Int?
+  assignedTo  User?      @relation("AssignedLeads", fields: [assignedToId], references: [id])
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   proposals   Proposal[]

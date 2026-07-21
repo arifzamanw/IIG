@@ -15,8 +15,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const proposal = await ProposalService.getById(id)
     if (!proposal) return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
 
+    const host = request.headers.get('host') || 'localhost:3000'
+    const protocol = request.headers.get('x-forwarded-proto') || 'http'
+    const baseUrl = `${protocol}://${host}`
+
     // Generate HTML directly server-side — no browser navigation needed, bypasses auth
-    const html = generateSalesOfferHtml(proposal)
+    const html = generateSalesOfferHtml(proposal, baseUrl)
 
     browser = await puppeteer.launch({
       headless: true,
@@ -25,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const page = await browser.newPage()
 
     // Set content directly instead of navigating to URL (bypasses auth middleware)
-    await page.setContent(html, { waitUntil: ['load', 'domcontentloaded'], timeout: 30000 })
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 })
 
     const pdfBuffer = await page.pdf({
       format: 'A4',

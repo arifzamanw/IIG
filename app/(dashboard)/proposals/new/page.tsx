@@ -39,16 +39,15 @@ export default function CreateProposalPage() {
   const [paymentPlan, setPaymentPlan] = useState<{ id: number, milestone: string, percentage: number, date: string }[]>([])
 
   // Data queries
-  const { data: searchResults = [] } = useQuery({
+  const { data: searchResults = [], isFetching: isSearchingCustomers } = useQuery({
     queryKey: ['customer-search', customerSearch],
     queryFn: async () => {
-      if (customerSearch.length < 2) return []
       const res = await fetch(`/api/cms/customers/search?q=${encodeURIComponent(customerSearch)}`)
       if (!res.ok) return []
       const data = await res.json()
       return Array.isArray(data) ? data : []
     },
-    enabled: customerSearch.length >= 2,
+    enabled: true,
     staleTime: 0,
   })
 
@@ -182,24 +181,36 @@ export default function CreateProposalPage() {
                   <Label>Search by name, email or phone</Label>
                   <Input placeholder="Type to search..." value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} />
                 </div>
-                {searchResults.length > 0 && (
-                  <div className="border border-neutral-200 rounded-lg overflow-hidden">
-                    {searchResults.map((c: any) => (
-                      <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name) }}
-                        className={`w-full flex items-start p-4 text-left hover:bg-neutral-50 border-b last:border-b-0 transition-colors ${selectedCustomer?.id === c.id ? 'bg-red-50' : ''}`}>
-                        <div>
-                          <p className="font-medium text-sm">{c.name}</p>
-                          <p className="text-xs text-neutral-500">{c.email} {c.phone && `· ${c.phone}`}</p>
-                        </div>
-                        {selectedCustomer?.id === c.id && <Check className="w-4 h-4 text-red-600 ml-auto" />}
-                      </button>
-                    ))}
+                {!selectedCustomer && (
+                  <div className="border border-neutral-200 rounded-lg overflow-hidden bg-white mt-2">
+                    {isSearchingCustomers ? (
+                      <div className="p-4 text-sm text-neutral-500 text-center">Loading customers...</div>
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map((c: any) => (
+                        <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name) }}
+                          className={`w-full flex items-start p-4 text-left hover:bg-neutral-50 border-b last:border-b-0 transition-colors`}>
+                          <div>
+                            <p className="font-medium text-sm">{c.name}</p>
+                            <p className="text-xs text-neutral-500">{c.email} {c.phone && `· ${c.phone}`}</p>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-4 text-sm text-neutral-500 text-center">
+                        No customers found. Try a different search or create a new customer.
+                      </div>
+                    )}
                   </div>
                 )}
                 {selectedCustomer && (
-                  <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-sm">
-                    <p className="font-medium text-green-800">✓ {selectedCustomer.name}</p>
-                    <p className="text-green-700">{selectedCustomer.email} {selectedCustomer.phone && `· ${selectedCustomer.phone}`}</p>
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-green-50 border border-green-200 text-sm mt-4">
+                    <div>
+                      <p className="font-medium text-green-800">✓ {selectedCustomer.name}</p>
+                      <p className="text-green-700">{selectedCustomer.email} {selectedCustomer.phone && `· ${selectedCustomer.phone}`}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => { setSelectedCustomer(null); setCustomerSearch('') }}>
+                      Change
+                    </Button>
                   </div>
                 )}
               </div>

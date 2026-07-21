@@ -2,16 +2,16 @@ import { CustomerRepository } from '../repositories/CustomerRepository'
 import { Prisma } from '@prisma/client'
 
 export class CustomerService {
-  static async getAll() {
-    return CustomerRepository.findAll()
+  static async getAll(where?: Prisma.CustomerWhereInput) {
+    return CustomerRepository.findAll(where)
   }
 
   static async getById(id: number) {
     return CustomerRepository.findById(id)
   }
 
-  static async search(query: string) {
-    return CustomerRepository.search(query)
+  static async search(query: string, where?: { assignedToId?: number }) {
+    return CustomerRepository.search(query, where)
   }
 
   static async create(data: Prisma.CustomerCreateInput) {

@@ -9,10 +9,13 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 export default function ProjectsPage() {
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [form, setForm] = useState({
     name: '', developerId: '', address: '', city: '', country: 'Georgia', status: 'PLANNING', completionDate: '', startingPrice: '', roi: ''
   })
@@ -23,12 +26,14 @@ export default function ProjectsPage() {
       const res = await fetch('/api/cms/projects')
       if (!res.ok) throw new Error('Failed to fetch projects')
       return res.json()
-    }
+    },
+    enabled: hasPermission('Projects', 'VIEW')
   })
 
   const { data: developers = [] } = useQuery({
     queryKey: ['developers'],
-    queryFn: async () => (await fetch('/api/cms/developers')).json()
+    queryFn: async () => (await fetch('/api/cms/developers')).json(),
+    enabled: hasPermission('Projects', 'EDIT')
   })
 
   const createMutation = useMutation({
@@ -58,16 +63,61 @@ export default function ProjectsPage() {
     onError: () => toast.error('Failed to create project')
   })
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map(id => fetch(`/api/cms/projects/${id}`, { method: 'DELETE' })))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setSelectedIds([])
+      toast.success('Selected projects removed')
+    }
+  })
+
+  const toggleSelectAll = () => {
+    if (projects && selectedIds.length === projects.length) {
+      setSelectedIds([])
+    } else if (projects) {
+      setSelectedIds(projects.map((p: any) => p.id))
+    }
+  }
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+
+  if (permissionsLoading) return <div className="p-8 text-center text-neutral-400">Loading...</div>
+  
+  if (!hasPermission('Projects', 'VIEW')) {
+    return (
+      <div className="p-8 text-center text-red-600 font-medium">
+        You do not have permission to access Projects.
+      </div>
+    )
+  }
+
+  const canEdit = hasPermission('Projects', 'EDIT')
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-        <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
-          <Plus className="w-4 h-4 mr-2" /> Add Project
-        </Button>
+        <div className="flex gap-2">
+          {canEdit && selectedIds.length > 0 && (
+            <Button variant="destructive" onClick={() => bulkDeleteMutation.mutate(selectedIds)} disabled={bulkDeleteMutation.isPending}>
+              {bulkDeleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete Selected ({selectedIds.length})
+            </Button>
+          )}
+          {canEdit && (
+            <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
+              <Plus className="w-4 h-4 mr-2" /> Add Project
+            </Button>
+          )}
+        </div>
       </div>
 
-      {isAdding && (
+      {isAdding && canEdit && (
         <Card className="shadow-sm">
           <CardHeader><CardTitle className="text-lg">New Project</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -116,6 +166,14 @@ export default function ProjectsPage() {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-neutral-500 bg-neutral-50 border-b uppercase">
                 <tr>
+                  {canEdit && (
+                    <th className="px-6 py-3 w-12 font-medium">
+                      <input type="checkbox" className="rounded border-neutral-300 text-red-600 focus:ring-red-500" 
+                        checked={projects?.length > 0 && selectedIds.length === projects.length} 
+                        onChange={toggleSelectAll} 
+                      />
+                    </th>
+                  )}
                   <th className="px-6 py-3 font-medium">Name</th>
                   <th className="px-6 py-3 font-medium">Developer</th>
                   <th className="px-6 py-3 font-medium">City</th>
@@ -126,6 +184,14 @@ export default function ProjectsPage() {
               <tbody>
                 {projects?.map((project: any) => (
                   <tr key={project.id} className="bg-white border-b hover:bg-neutral-50 transition-colors">
+                    {canEdit && (
+                      <td className="px-6 py-4">
+                        <input type="checkbox" className="rounded border-neutral-300 text-red-600 focus:ring-red-500" 
+                          checked={selectedIds.includes(project.id)} 
+                          onChange={() => toggleSelect(project.id)} 
+                        />
+                      </td>
+                    )}
                     <td className="px-6 py-4 font-medium text-neutral-900">{project.name}</td>
                     <td className="px-6 py-4 text-neutral-500">{project.developer?.name}</td>
                     <td className="px-6 py-4 text-neutral-500">{project.city}</td>

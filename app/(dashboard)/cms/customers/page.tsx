@@ -8,17 +8,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 const SOURCES = ['Direct', 'Instagram', 'Facebook', 'LinkedIn', 'Referral', 'Walk-in', 'Website', 'Email', 'Other']
 
 export default function CustomersPage() {
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', nationality: '', source: '', notes: '' })
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ['customers'],
-    queryFn: async () => (await fetch('/api/cms/customers')).json()
+    queryFn: async () => {
+      const res = await fetch('/api/cms/customers')
+      if (!res.ok) throw new Error('Failed to fetch customers')
+      return res.json()
+    },
+    enabled: hasPermission('Customers', 'VIEW')
   })
 
   const createMutation = useMutation({
@@ -46,23 +54,69 @@ export default function CustomersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      toast.success('Customer removed')
+      setSelectedIds(prev => prev.filter(selectedId => selectedId !== deleteMutation.variables))
+      toast.success('Lead removed')
     }
   })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map(id => fetch(`/api/cms/customers/${id}`, { method: 'DELETE' })))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      setSelectedIds([])
+      toast.success('Selected leads removed')
+    }
+  })
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === customers.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(customers.map((c: any) => c.id))
+    }
+  }
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+
+  if (permissionsLoading) return <div className="p-8 text-center text-neutral-400">Loading...</div>
+  
+  if (!hasPermission('Customers', 'VIEW')) {
+    return (
+      <div className="p-8 text-center text-red-600 font-medium">
+        You do not have permission to access Leads.
+      </div>
+    )
+  }
+
+  const canEdit = hasPermission('Customers', 'EDIT')
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
-          <p className="text-sm text-neutral-500 mt-1">Manage your CRM. Customers are linked to proposals.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
+          <p className="text-sm text-neutral-500 mt-1">Manage your CRM. Leads are linked to proposals.</p>
         </div>
-        <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
-          <Plus className="w-4 h-4 mr-2" /> Add Customer
-        </Button>
+        <div className="flex gap-2">
+          {canEdit && selectedIds.length > 0 && (
+            <Button variant="destructive" onClick={() => bulkDeleteMutation.mutate(selectedIds)} disabled={bulkDeleteMutation.isPending}>
+              {bulkDeleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete Selected ({selectedIds.length})
+            </Button>
+          )}
+          {canEdit && (
+            <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
+              <Plus className="w-4 h-4 mr-2" /> Add Lead
+            </Button>
+          )}
+        </div>
       </div>
 
-      {isAdding && (
+      {isAdding && canEdit && (
         <Card className="shadow-sm">
           <CardHeader><CardTitle className="text-lg">New Customer</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -100,6 +154,14 @@ export default function CustomersPage() {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-neutral-500 bg-neutral-50 border-b uppercase">
                 <tr>
+                  {canEdit && (
+                    <th className="px-6 py-3 w-12">
+                      <input type="checkbox" className="rounded border-neutral-300 text-red-600 focus:ring-red-500" 
+                        checked={customers.length > 0 && selectedIds.length === customers.length} 
+                        onChange={toggleSelectAll} 
+                      />
+                    </th>
+                  )}
                   <th className="px-6 py-3">Name</th>
                   <th className="px-6 py-3">Contact</th>
                   <th className="px-6 py-3">Nationality</th>
@@ -111,6 +173,14 @@ export default function CustomersPage() {
               <tbody>
                 {customers.map((c: any) => (
                   <tr key={c.id} className="bg-white border-b hover:bg-neutral-50 transition-colors">
+                    {canEdit && (
+                      <td className="px-6 py-4">
+                        <input type="checkbox" className="rounded border-neutral-300 text-red-600 focus:ring-red-500" 
+                          checked={selectedIds.includes(c.id)} 
+                          onChange={() => toggleSelect(c.id)} 
+                        />
+                      </td>
+                    )}
                     <td className="px-6 py-4 font-medium text-neutral-900">{c.name}</td>
                     <td className="px-6 py-4 text-neutral-600">
                       <div className="space-y-0.5">
@@ -124,9 +194,13 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-6 py-4 text-neutral-600 font-medium">{c._count?.proposals || 0}</td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deleteMutation.mutate(c.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {canEdit ? (
+                        <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deleteMutation.mutate(c.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-neutral-400 text-xs">Read-only</span>
+                      )}
                     </td>
                   </tr>
                 ))}

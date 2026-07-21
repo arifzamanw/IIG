@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 export class ProposalRepository {
-  static async findAll() {
+  static async findAll(where?: Prisma.ProposalWhereInput) {
     return prisma.proposal.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         customer: { select: { id: true, name: true, email: true, phone: true } },

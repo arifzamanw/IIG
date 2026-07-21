@@ -10,7 +10,10 @@ export class UserRepository {
   static async findById(id: number) {
     return prisma.user.findUnique({
       where: { id },
-      include: { role: { include: { permissions: true } } }
+      include: { 
+        role: { include: { permissions: true } },
+        moduleAccess: true
+      }
     })
   }
 
@@ -39,5 +42,26 @@ export class UserRepository {
 
   static async setActive(id: number, isActive: boolean) {
     return prisma.user.update({ where: { id }, data: { isActive } })
+  }
+
+  static async delete(id: number) {
+    return prisma.user.delete({ where: { id } })
+  }
+
+  static async updateModuleAccess(userId: number, overrides: { moduleName: string, accessLevel: 'VIEW' | 'EDIT' | 'RESTRICTED' }[]) {
+    // We could use an interactive transaction to delete all overrides and recreate, or upsert.
+    // Easiest is to delete all existing overrides for this user, then insert the new ones.
+    return prisma.$transaction(async (tx) => {
+      await tx.userModuleAccess.deleteMany({ where: { userId } })
+      if (overrides.length > 0) {
+        await tx.userModuleAccess.createMany({
+          data: overrides.map(o => ({
+            userId,
+            moduleName: o.moduleName,
+            accessLevel: o.accessLevel
+          }))
+        })
+      }
+    })
   }
 }

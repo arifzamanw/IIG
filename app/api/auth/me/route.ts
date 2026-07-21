@@ -25,6 +25,7 @@ export async function GET() {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: user.role
+    role: user.role,
+    moduleAccess: user.moduleAccess
   })
 }

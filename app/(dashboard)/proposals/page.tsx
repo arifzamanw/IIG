@@ -1,28 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, FileText, Download, Loader2, Trash2 } from 'lucide-react'
+import { Plus, FileText, Download, Loader2, Trash2, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
 const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'bg-neutral-100 text-neutral-700',
-  SENT: 'bg-blue-50 text-blue-700',
-  VIEWED: 'bg-amber-50 text-amber-700',
-  ACCEPTED: 'bg-green-50 text-green-700',
-  REJECTED: 'bg-red-50 text-red-700',
+  DRAFT:    'bg-neutral-100 text-neutral-600 border-neutral-200',
+  SENT:     'bg-blue-50 text-blue-700 border-blue-100',
+  VIEWED:   'bg-amber-50 text-amber-700 border-amber-100',
+  ACCEPTED: 'bg-green-50 text-green-700 border-green-100',
+  REJECTED: 'bg-red-50 text-red-700 border-red-100',
 }
+
+const ALL_STATUSES = ['ALL', 'DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED']
 
 export default function ProposalsPage() {
   const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [activeStatus, setActiveStatus] = useState('ALL')
+  const [search, setSearch] = useState('')
 
   const { data: proposals = [], isLoading } = useQuery({
     queryKey: ['proposals'],
-    queryFn: async () => (await fetch('/api/proposals')).json()
+    queryFn: async () => {
+      const res = await fetch('/api/proposals')
+      if (!res.ok) throw new Error('Failed to fetch')
+      return res.json()
+    }
   })
 
   const generatePdfMutation = useMutation({
@@ -51,8 +60,7 @@ export default function ProposalsPage() {
   })
 
   const bulkDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} proposals?`)) return
-    
+    if (!confirm(`Delete ${selectedIds.length} proposal(s)?`)) return
     for (const id of selectedIds) {
       await fetch(`/api/proposals/${id}`, { method: 'DELETE' })
     }
@@ -61,29 +69,48 @@ export default function ProposalsPage() {
     toast.success('Proposals deleted')
   }
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
-  }
+  // Filter logic
+  const filtered = useMemo(() => {
+    return proposals.filter((p: any) => {
+      const matchStatus = activeStatus === 'ALL' || p.status === activeStatus
+      const q = search.toLowerCase()
+      const matchSearch = !q ||
+        p.customer?.name?.toLowerCase().includes(q) ||
+        String(p.id).includes(q) ||
+        p.createdBy?.name?.toLowerCase().includes(q)
+      return matchStatus && matchSearch
+    })
+  }, [proposals, activeStatus, search])
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === proposals.length) {
-      setSelectedIds([])
-    } else {
-      setSelectedIds(proposals.map((p: any) => p.id))
+  // Status counts
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { ALL: proposals.length }
+    for (const s of ALL_STATUSES.slice(1)) {
+      c[s] = proposals.filter((p: any) => p.status === s).length
     }
-  }
+    return c
+  }, [proposals])
+
+  const toggleSelect = (id: number) =>
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+
+  const toggleSelectAll = () =>
+    setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map((p: any) => p.id))
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Proposals</h1>
-          <p className="text-sm text-neutral-500 mt-1">All generated sales proposals and their status.</p>
+          <p className="text-sm text-neutral-500 mt-1">
+            {proposals.length} total proposal{proposals.length !== 1 ? 's' : ''}
+          </p>
         </div>
         <div className="flex gap-2">
           {selectedIds.length > 0 && (
             <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={bulkDelete}>
-              <Trash2 className="w-4 h-4 mr-2" /> Delete Selected ({selectedIds.length})
+              <Trash2 className="w-4 h-4 mr-2" /> Delete ({selectedIds.length})
             </Button>
           )}
           <Link href="/proposals/new">
@@ -94,83 +121,144 @@ export default function ProposalsPage() {
         </div>
       </div>
 
-      <Card className="shadow-sm">
+      {/* Search + Status Filter bar */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+          <Input
+            placeholder="Search by customer, agent, ID…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9 pr-8"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {ALL_STATUSES.map(s => (
+            <button
+              key={s}
+              onClick={() => { setActiveStatus(s); setSelectedIds([]) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                activeStatus === s
+                  ? 'bg-neutral-900 text-white border-neutral-900'
+                  : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'
+              }`}
+            >
+              {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
+              <span className="ml-1.5 opacity-70">({counts[s] ?? 0})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <Card className="shadow-sm border-neutral-200 overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-neutral-400" /></div>
-          ) : proposals.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
-              <p className="text-neutral-500 font-medium">No proposals yet</p>
-              <p className="text-sm text-neutral-400 mb-4">Create your first proposal to get started</p>
-              <Link href="/proposals/new">
-                <Button className="bg-red-600 hover:bg-red-700"><Plus className="w-4 h-4 mr-2" />New Proposal</Button>
-              </Link>
+              <p className="text-neutral-500 font-medium">
+                {proposals.length === 0 ? 'No proposals yet' : 'No matching proposals'}
+              </p>
+              <p className="text-sm text-neutral-400 mb-4">
+                {proposals.length === 0 ? 'Create your first proposal to get started' : 'Try adjusting the filters'}
+              </p>
+              {proposals.length === 0 && (
+                <Link href="/proposals/new">
+                  <Button className="bg-red-600 hover:bg-red-700"><Plus className="w-4 h-4 mr-2" />New Proposal</Button>
+                </Link>
+              )}
             </div>
           ) : (
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-neutral-500 bg-neutral-50 border-b uppercase">
-                <tr>
-                  <th className="px-6 py-3 w-10">
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-neutral-300 text-red-600 focus:ring-red-500"
-                      checked={selectedIds.length > 0 && selectedIds.length === proposals.length}
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                  <th className="px-6 py-3">#</th>
-                  <th className="px-6 py-3">Customer</th>
-                  <th className="px-6 py-3">Created By</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {proposals.map((p: any) => (
-                  <tr key={p.id} className={`bg-white border-b transition-colors ${selectedIds.includes(p.id) ? 'bg-red-50/50' : 'hover:bg-neutral-50'}`}>
-                    <td className="px-6 py-4">
-                      <input 
-                        type="checkbox" 
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left min-w-[640px]">
+                <thead className="text-xs text-neutral-400 bg-neutral-50 border-b border-neutral-100 uppercase font-semibold">
+                  <tr>
+                    <th className="px-5 py-3.5 w-10">
+                      <input
+                        type="checkbox"
                         className="rounded border-neutral-300 text-red-600 focus:ring-red-500"
-                        checked={selectedIds.includes(p.id)}
-                        onChange={() => toggleSelect(p.id)}
+                        checked={filtered.length > 0 && selectedIds.length === filtered.length}
+                        onChange={toggleSelectAll}
                       />
-                    </td>
-                    <td className="px-6 py-4 font-mono text-neutral-500 text-xs">#{String(p.id).padStart(4, '0')}</td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-neutral-900">{p.customer?.name}</p>
-                      <p className="text-xs text-neutral-500">{p.customer?.email}</p>
-                    </td>
-                    <td className="px-6 py-4 text-neutral-600">{p.createdBy?.name}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${STATUS_COLORS[p.status]}`}>{p.status}</span>
-                    </td>
-                    <td className="px-6 py-4 text-neutral-500 text-xs">
-                      {new Date(p.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
-                      <Link href={`/proposals/${p.id}`}>
-                        <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-red-600">
-                          <FileText className="w-4 h-4 mr-1" /> View
-                        </Button>
-                      </Link>
-                      <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-red-600"
-                        onClick={() => generatePdfMutation.mutate(p.id)}
-                        disabled={generatePdfMutation.isPending}>
-                        <Download className="w-4 h-4 mr-1" /> PDF
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-neutral-400 hover:text-red-600"
-                        onClick={() => { if (confirm('Delete proposal?')) deleteMutation.mutate(p.id) }}
-                        disabled={deleteMutation.isPending}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </td>
+                    </th>
+                    <th className="px-5 py-3.5">ID</th>
+                    <th className="px-5 py-3.5">Customer</th>
+                    <th className="px-5 py-3.5">Agent</th>
+                    <th className="px-5 py-3.5">Status</th>
+                    <th className="px-5 py-3.5">Date</th>
+                    <th className="px-5 py-3.5 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-50">
+                  {filtered.map((p: any) => (
+                    <tr key={p.id} className={`transition-colors ${selectedIds.includes(p.id) ? 'bg-red-50/40' : 'hover:bg-neutral-50/70'}`}>
+                      <td className="px-5 py-4">
+                        <input
+                          type="checkbox"
+                          className="rounded border-neutral-300 text-red-600 focus:ring-red-500"
+                          checked={selectedIds.includes(p.id)}
+                          onChange={() => toggleSelect(p.id)}
+                        />
+                      </td>
+                      <td className="px-5 py-4">
+                        <Link href={`/proposals/${p.id}`} className="font-mono text-xs text-neutral-500 hover:text-blue-600 transition-colors">
+                          #{String(p.id).padStart(4, '0')}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="font-semibold text-neutral-900 leading-tight">{p.customer?.name}</p>
+                        {p.customer?.email && (
+                          <p className="text-xs text-neutral-400 mt-0.5">{p.customer.email}</p>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-neutral-600 text-sm">{p.createdBy?.name ?? '—'}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${STATUS_COLORS[p.status] ?? ''}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-neutral-400 text-xs whitespace-nowrap">
+                        {new Date(p.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/proposals/${p.id}`}>
+                            <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-red-600 h-8 px-2">
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost" size="sm"
+                            className="text-neutral-500 hover:text-red-600 h-8 px-2"
+                            onClick={() => generatePdfMutation.mutate(p.id)}
+                            disabled={generatePdfMutation.isPending}
+                            title="Generate PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="sm"
+                            className="text-neutral-300 hover:text-red-600 h-8 px-2"
+                            onClick={() => { if (confirm('Delete this proposal?')) deleteMutation.mutate(p.id) }}
+                            disabled={deleteMutation.isPending}
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

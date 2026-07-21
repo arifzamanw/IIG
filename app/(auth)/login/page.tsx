@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import Image from 'next/image'
 import { Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,12 +58,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-lg border-neutral-200/60 bg-white">
         <CardHeader className="space-y-2 text-center pb-8">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-red-50 text-red-600 rounded-2xl">
-              <Building2 className="w-8 h-8" />
-            </div>
+          <div className="flex justify-center mb-6">
+            <Image src="/logo-black.svg" alt="IIG Logo" width={160} height={50} className="h-12 w-auto object-contain" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Invest Georgia</CardTitle>
           <CardDescription className="text-neutral-500">
             Sign in to the CMS & Proposal Platform
           </CardDescription>

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 const CATEGORIES = ['RECREATION', 'WELLNESS', 'SECURITY', 'CONNECTIVITY', 'TRANSPORT', 'RETAIL', 'OTHER']
 
@@ -18,6 +19,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 export default function AmenitiesPage() {
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('')
@@ -26,7 +28,12 @@ export default function AmenitiesPage() {
 
   const { data: amenities = [], isLoading } = useQuery({
     queryKey: ['amenities'],
-    queryFn: async () => (await fetch('/api/cms/amenities')).json()
+    queryFn: async () => {
+      const res = await fetch('/api/cms/amenities')
+      if (!res.ok) throw new Error('Failed to fetch amenities')
+      return res.json()
+    },
+    enabled: hasPermission('Amenities', 'VIEW')
   })
 
   const createMutation = useMutation({
@@ -60,6 +67,18 @@ export default function AmenitiesPage() {
 
   const grouped = (filterCat === 'ALL' ? amenities : amenities.filter((a: any) => a.category === filterCat))
 
+  if (permissionsLoading) return <div className="p-8 text-center text-neutral-400">Loading...</div>
+  
+  if (!hasPermission('Amenities', 'VIEW')) {
+    return (
+      <div className="p-8 text-center text-red-600 font-medium">
+        You do not have permission to access Amenities.
+      </div>
+    )
+  }
+
+  const canEdit = hasPermission('Amenities', 'EDIT')
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -67,12 +86,14 @@ export default function AmenitiesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Amenities</h1>
           <p className="text-sm text-neutral-500 mt-1">Manage the global amenity library. Link amenities to projects from the project detail page.</p>
         </div>
-        <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
-          <Plus className="w-4 h-4 mr-2" /> Add Amenity
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
+            <Plus className="w-4 h-4 mr-2" /> Add Amenity
+          </Button>
+        )}
       </div>
 
-      {isAdding && (
+      {isAdding && canEdit && (
         <Card className="shadow-sm">
           <CardHeader><CardTitle className="text-lg">New Amenity</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -140,9 +161,13 @@ export default function AmenitiesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deleteMutation.mutate(amenity.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {canEdit ? (
+                        <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deleteMutation.mutate(amenity.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-neutral-400 text-xs">Read-only</span>
+                      )}
                     </td>
                   </tr>
                 ))}

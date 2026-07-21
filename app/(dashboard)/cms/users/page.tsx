@@ -1,27 +1,128 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Loader2, UserCheck, UserX } from 'lucide-react'
+import { Plus, Trash2, Loader2, UserCheck, UserX, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 
+function AccessModal({ user, onClose, queryClient }: any) {
+  const modules = ['Amenities', 'Customers', 'Developers', 'Media', 'PaymentPlans', 'Projects', 'Settings', 'Templates', 'Units', 'Users']
+  
+  const { data: accessData = [], isLoading } = useQuery({
+    queryKey: ['users', user.id, 'access'],
+    queryFn: async () => {
+      const res = await fetch(`/api/cms/users/${user.id}/access`)
+      if (!res.ok) throw new Error('Failed to fetch access data')
+      return res.json()
+    }
+  })
+
+  const [overrides, setOverrides] = useState<any>({})
+
+  useEffect(() => {
+    if (Array.isArray(accessData) && accessData.length) {
+      const init: any = {}
+      accessData.forEach((a: any) => { init[a.moduleName] = a.accessLevel })
+      setOverrides(init)
+    }
+  }, [accessData])
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const overridesArray = Object.entries(overrides)
+        .filter(([_, level]) => level !== 'DEFAULT')
+        .map(([moduleName, accessLevel]) => ({ moduleName, accessLevel }))
+      
+      const res = await fetch(`/api/cms/users/${user.id}/access`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ overrides: overridesArray })
+      })
+      if (!res.ok) throw new Error('Failed to save access')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', user.id, 'access'] })
+      toast.success('Access updated')
+      onClose()
+    },
+    onError: (e: any) => toast.error(e.message)
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold">Manage Access for {user.name}</h2>
+          <p className="text-sm text-neutral-500">Overrides base role: {user.role?.name}</p>
+        </div>
+        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+          {isLoading ? (
+            <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-neutral-400" /></div>
+          ) : (
+            <div className="space-y-3">
+              {modules.map(mod => (
+                <div key={mod} className="flex items-center justify-between">
+                  <Label className="font-medium">{mod}</Label>
+                  <select
+                    className="flex h-9 w-32 rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+                    value={overrides[mod] || 'DEFAULT'}
+                    onChange={e => setOverrides({ ...overrides, [mod]: e.target.value })}
+                  >
+                    <option value="DEFAULT">Default</option>
+                    <option value="VIEW">View</option>
+                    <option value="EDIT">Edit</option>
+                    <option value="RESTRICTED">Restricted</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="p-4 border-t flex justify-end gap-3">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+import { usePermissions } from '@/hooks/usePermissions'
+
 export default function UsersPage() {
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', roleId: '' })
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
-    queryFn: async () => (await fetch('/api/cms/users')).json()
+    queryFn: async () => {
+      const res = await fetch('/api/cms/users')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to fetch users')
+      }
+      return res.json()
+    },
+    enabled: hasPermission('Users', 'VIEW')
   })
 
   const { data: roles = [] } = useQuery({
     queryKey: ['roles'],
-    queryFn: async () => (await fetch('/api/cms/roles')).json()
+    queryFn: async () => {
+      const res = await fetch('/api/cms/roles')
+      if (!res.ok) throw new Error('Failed to fetch roles')
+      return res.json()
+    },
+    enabled: hasPermission('Users', 'EDIT')
   })
 
   const createMutation = useMutation({
@@ -45,17 +146,43 @@ export default function UsersPage() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
-      await fetch(`/api/cms/users/${id}`, {
+      const res = await fetch(`/api/cms/users/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive })
       })
+      if (!res.ok) throw new Error('Failed to update status')
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success('User updated')
-    }
+    },
+    onError: (e: any) => toast.error(e.message)
   })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/cms/users/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete user')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('User deleted')
+    },
+    onError: (e: any) => toast.error(e.message)
+  })
+
+  if (permissionsLoading) return <div className="p-8 text-center text-neutral-400">Loading...</div>
+  
+  if (!hasPermission('Users', 'VIEW')) {
+    return (
+      <div className="p-8 text-center text-red-600 font-medium">
+        You do not have permission to access User Management.
+      </div>
+    )
+  }
+
+  const canEdit = hasPermission('Users', 'EDIT')
 
   return (
     <div className="space-y-6">
@@ -64,12 +191,14 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Users & Access</h1>
           <p className="text-sm text-neutral-500 mt-1">Manage team members and their roles.</p>
         </div>
-        <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700">
-          <Plus className="w-4 h-4 mr-2" /> Add User
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700 text-white">
+            <Plus className="w-4 h-4 mr-2" /> Add User
+          </Button>
+        )}
       </div>
 
-      {isAdding && (
+      {isAdding && canEdit && (
         <Card className="shadow-sm">
           <CardHeader><CardTitle className="text-lg">New User</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -87,7 +216,7 @@ export default function UsersPage() {
               </div>
             </div>
             <div className="flex gap-3">
-              <Button onClick={() => createMutation.mutate()} disabled={!form.name || !form.email || !form.password || !form.roleId || createMutation.isPending} className="bg-red-600 hover:bg-red-700">
+              <Button onClick={() => createMutation.mutate()} disabled={!form.name || !form.email || !form.password || !form.roleId || createMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">
                 {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Create User
               </Button>
               <Button variant="outline" onClick={() => setIsAdding(false)}>Cancel</Button>
@@ -124,12 +253,35 @@ export default function UsersPage() {
                         {user.isActive ? 'Active' : 'Disabled'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="icon"
-                        className={`${user.isActive ? 'text-neutral-400 hover:text-red-600' : 'text-neutral-400 hover:text-green-600'}`}
-                        onClick={() => toggleMutation.mutate({ id: user.id, isActive: !user.isActive })}>
-                        {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                      </Button>
+                    <td className="px-6 py-4 text-right flex justify-end gap-1">
+                      {canEdit ? (
+                        <>
+                          <Button variant="ghost" size="icon"
+                            className="text-neutral-400 hover:text-blue-600"
+                            title="Manage Access"
+                            onClick={() => setSelectedUser(user)}>
+                            <Shield className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon"
+                            className={`${user.isActive ? 'text-neutral-400 hover:text-red-600' : 'text-neutral-400 hover:text-green-600'}`}
+                            title={user.isActive ? 'Disable User' : 'Enable User'}
+                            onClick={() => toggleMutation.mutate({ id: user.id, isActive: !user.isActive })}>
+                            {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                          </Button>
+                          <Button variant="ghost" size="icon"
+                            className="text-neutral-400 hover:text-red-600"
+                            title="Delete User"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to permanently delete this user?')) {
+                                deleteMutation.mutate(user.id)
+                              }
+                            }}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-neutral-400 text-xs">Read-only</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -138,6 +290,14 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+      
+      {selectedUser && (
+        <AccessModal 
+          user={selectedUser} 
+          queryClient={queryClient} 
+          onClose={() => setSelectedUser(null)} 
+        />
+      )}
     </div>
   )
 }

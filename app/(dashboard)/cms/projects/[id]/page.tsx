@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import Image from 'next/image'
+import { usePermissions } from '@/hooks/usePermissions'
 
 const STATUS_COLORS: Record<string, string> = {
   PLANNING: 'bg-blue-50 text-blue-700',
@@ -33,6 +34,7 @@ type Tab = 'overview' | 'units' | 'amenities' | 'payment-plans' | 'media'
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [showAddUnit, setShowAddUnit] = useState(false)
   const [editingUnit, setEditingUnit] = useState<any>(null)
@@ -41,6 +43,7 @@ export default function ProjectDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [planName, setPlanName] = useState('')
   const [planDesc, setPlanDesc] = useState('')
+  const [planSchedule, setPlanSchedule] = useState<{label: string, percentage: string, dueDays: string}[]>([])
 
   // -- Queries --
   const { data: project, isLoading } = useQuery({
@@ -110,7 +113,15 @@ export default function ProjectDetailPage() {
       const res = await fetch(`/api/cms/projects/${id}/payment-plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: planName, description: planDesc, schedule: [] })
+        body: JSON.stringify({ 
+          name: planName, 
+          description: planDesc, 
+          schedule: planSchedule.map(s => ({
+            label: s.label,
+            percentage: Number(s.percentage),
+            dueDays: Number(s.dueDays)
+          }))
+        })
       })
       if (!res.ok) throw new Error('Failed')
       return res.json()
@@ -119,6 +130,7 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['payment-plans', id] })
       setPlanName('')
       setPlanDesc('')
+      setPlanSchedule([])
       setShowAddPlan(false)
       toast.success('Payment plan added')
     }
@@ -236,9 +248,19 @@ export default function ProjectDetailPage() {
     }
   }
 
-  if (isLoading) {
+  if (permissionsLoading || isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-neutral-400" /></div>
   }
+
+  if (!hasPermission('Projects', 'VIEW')) {
+    return (
+      <div className="p-8 text-center text-red-600 font-medium">
+        You do not have permission to access Projects.
+      </div>
+    )
+  }
+
+  const canEdit = hasPermission('Projects', 'EDIT')
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'overview', label: 'Overview' },
@@ -295,15 +317,17 @@ export default function ProjectDetailPage() {
             </div>
             
             <div className="flex flex-col sm:flex-row gap-3 md:items-center">
-              <Button 
-                variant={project?.isPublished ? 'outline' : 'default'}
-                className={!project?.isPublished ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
-                onClick={() => togglePublishMutation.mutate(project?.isPublished)}
-                disabled={togglePublishMutation.isPending}
-              >
-                {togglePublishMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {project?.isPublished ? 'Unpublish Project' : 'Publish Project'}
-              </Button>
+              {canEdit && (
+                <Button 
+                  variant={project?.isPublished ? 'outline' : 'default'}
+                  className={!project?.isPublished ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
+                  onClick={() => togglePublishMutation.mutate(project?.isPublished)}
+                  disabled={togglePublishMutation.isPending}
+                >
+                  {togglePublishMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {project?.isPublished ? 'Unpublish Project' : 'Publish Project'}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -371,12 +395,14 @@ export default function ProjectDetailPage() {
       {activeTab === 'units' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => { setEditingUnit(null); resetUnit(); setShowAddUnit(!showAddUnit) }} className="bg-red-600 hover:bg-red-700">
-              <Plus className="w-4 h-4 mr-2" /> Add Unit
-            </Button>
+            {canEdit && (
+              <Button onClick={() => { setEditingUnit(null); resetUnit(); setShowAddUnit(!showAddUnit) }} className="bg-red-600 hover:bg-red-700">
+                <Plus className="w-4 h-4 mr-2" /> Add Unit
+              </Button>
+            )}
           </div>
 
-          {showAddUnit && (
+          {showAddUnit && canEdit && (
             <Card className="shadow-sm border-red-100">
               <CardHeader><CardTitle className="text-lg">{editingUnit ? 'Edit Unit' : 'New Unit'}</CardTitle></CardHeader>
               <CardContent>
@@ -449,12 +475,18 @@ export default function ProjectDetailPage() {
                         <td className="px-6 py-4 font-medium">{Number(unit.price).toLocaleString()} {unit.currency}</td>
                         <td className="px-6 py-4"><span className={`px-2 py-1 text-xs rounded-full font-medium ${UNIT_STATUS_COLORS[unit.status]}`}>{unit.status}</span></td>
                         <td className="px-6 py-4 text-right flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-blue-600 h-8 px-2" onClick={() => openEditUnit(unit)}>
-                            Edit
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-neutral-400 hover:text-red-600 h-8 px-2" onClick={() => deleteUnitMutation.mutate(unit.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {canEdit ? (
+                            <>
+                              <Button variant="ghost" size="sm" className="text-neutral-500 hover:text-blue-600 h-8 px-2" onClick={() => openEditUnit(unit)}>
+                                Edit
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-neutral-400 hover:text-red-600 h-8 px-2" onClick={() => deleteUnitMutation.mutate(unit.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-neutral-400 text-xs">Read-only</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -505,17 +537,49 @@ export default function ProjectDetailPage() {
       {activeTab === 'payment-plans' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setShowAddPlan(true)} className="bg-red-600 hover:bg-red-700"><Plus className="w-4 h-4 mr-2" /> Add Plan</Button>
+            {canEdit && (
+              <Button onClick={() => setShowAddPlan(true)} className="bg-red-600 hover:bg-red-700"><Plus className="w-4 h-4 mr-2" /> Add Plan</Button>
+            )}
           </div>
-          {showAddPlan && (
+          {showAddPlan && canEdit && (
             <Card className="shadow-sm">
               <CardHeader><CardTitle className="text-lg">New Payment Plan</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1"><Label>Plan Name *</Label><Input placeholder='e.g. "40/60 Plan"' value={planName} onChange={e => setPlanName(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Description</Label><Input placeholder="e.g. 40% on booking, 60% on handover" value={planDesc} onChange={e => setPlanDesc(e.target.value)} /></div>
-                <div className="flex gap-3">
+                
+                <div className="space-y-2">
+                  <Label>Schedule Details</Label>
+                  {planSchedule.map((item, index) => (
+                    <div key={index} className="flex gap-2 items-center bg-neutral-50 p-2 rounded-lg border border-neutral-200">
+                      <Input placeholder="Label (e.g. Booking)" value={item.label} onChange={e => {
+                        const newSch = [...planSchedule]
+                        newSch[index].label = e.target.value
+                        setPlanSchedule(newSch)
+                      }} />
+                      <Input type="number" placeholder="%" value={item.percentage} className="w-24" onChange={e => {
+                        const newSch = [...planSchedule]
+                        newSch[index].percentage = e.target.value
+                        setPlanSchedule(newSch)
+                      }} />
+                      <Input type="number" placeholder="Days Due" value={item.dueDays} className="w-24" onChange={e => {
+                        const newSch = [...planSchedule]
+                        newSch[index].dueDays = e.target.value
+                        setPlanSchedule(newSch)
+                      }} />
+                      <Button variant="ghost" size="icon" className="text-red-500" onClick={() => setPlanSchedule(planSchedule.filter((_, i) => i !== index))}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => setPlanSchedule([...planSchedule, { label: '', percentage: '', dueDays: '' }])} className="w-full border-dashed">
+                    <Plus className="w-4 h-4 mr-2" /> Add Milestone
+                  </Button>
+                </div>
+
+                <div className="flex gap-3 pt-2">
                   <Button onClick={() => createPlanMutation.mutate()} disabled={!planName || createPlanMutation.isPending} className="bg-red-600 hover:bg-red-700">Save</Button>
-                  <Button variant="outline" onClick={() => setShowAddPlan(false)}>Cancel</Button>
+                  <Button variant="outline" onClick={() => { setShowAddPlan(false); setPlanSchedule([]); }}>Cancel</Button>
                 </div>
               </CardContent>
             </Card>
@@ -531,10 +595,23 @@ export default function ProjectDetailPage() {
                       <div>
                         <p className="font-medium text-neutral-900">{plan.name}</p>
                         {plan.description && <p className="text-sm text-neutral-500 mt-0.5">{plan.description}</p>}
+                        {plan.schedule && Array.isArray(plan.schedule) && plan.schedule.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {plan.schedule.map((s: any, i: number) => (
+                              <div key={i} className="text-xs flex gap-4 text-neutral-600 bg-white border border-neutral-100 p-1.5 rounded">
+                                <span className="font-medium w-32">{s.label}</span>
+                                <span className="text-blue-600 w-12">{s.percentage}%</span>
+                                <span>Due in {s.dueDays} days</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deletePlanMutation.mutate(plan.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {canEdit && (
+                        <Button variant="ghost" size="icon" className="text-neutral-400 hover:text-red-600" onClick={() => deletePlanMutation.mutate(plan.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -558,18 +635,20 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Upload zone */}
-          <Card className="shadow-sm border-2 border-dashed border-neutral-200 hover:border-red-300 transition-colors">
-            <CardContent className="p-8 text-center">
-              <input type="file" id="file-upload" className="hidden" multiple accept="image/*,.pdf" onChange={handleFileUpload} />
-              <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                {uploading ? (
-                  <><Loader2 className="w-8 h-8 animate-spin text-neutral-400" /><p className="text-sm text-neutral-500">Uploading...</p></>
-                ) : (
-                  <><Upload className="w-8 h-8 text-neutral-400" /><p className="text-sm font-medium text-neutral-700">Click to upload {mediaType.replace('_', ' ').toLowerCase()}s</p><p className="text-xs text-neutral-400">JPG, PNG, WebP, PDF — max 10MB each</p></>
-                )}
-              </label>
-            </CardContent>
-          </Card>
+          {canEdit && (
+            <Card className="shadow-sm border-2 border-dashed border-neutral-200 hover:border-red-300 transition-colors">
+              <CardContent className="p-8 text-center">
+                <input type="file" id="file-upload" className="hidden" multiple accept="image/*,.pdf" onChange={handleFileUpload} />
+                <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                  {uploading ? (
+                    <><Loader2 className="w-8 h-8 animate-spin text-neutral-400" /><p className="text-sm text-neutral-500">Uploading...</p></>
+                  ) : (
+                    <><Upload className="w-8 h-8 text-neutral-400" /><p className="text-sm font-medium text-neutral-700">Click to upload {mediaType.replace('_', ' ').toLowerCase()}s</p><p className="text-xs text-neutral-400">JPG, PNG, WebP, PDF — max 10MB each</p></>
+                  )}
+                </label>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Media grid */}
           {filteredMedia.length > 0 && (
@@ -584,12 +663,14 @@ export default function ProjectDetailPage() {
                       <p className="text-xs text-neutral-600 mt-2 line-clamp-2">{file.name}</p>
                     </div>
                   )}
-                  <button
-                    onClick={() => deleteMediaMutation.mutate(file.id)}
-                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => deleteMediaMutation.mutate(file.id)}
+                      className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -12,4 +12,12 @@ export class UserService {
   static async toggleActive(id: number, isActive: boolean) {
     return UserRepository.setActive(id, isActive)
   }
+
+  static async deleteUser(id: number) {
+    return UserRepository.delete(id)
+  }
+
+  static async updateModuleAccess(id: number, overrides: { moduleName: string, accessLevel: 'VIEW' | 'EDIT' | 'RESTRICTED' }[]) {
+    return UserRepository.updateModuleAccess(id, overrides)
+  }
 }
