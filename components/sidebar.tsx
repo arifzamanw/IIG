@@ -53,7 +53,7 @@ export function Sidebar() {
     <aside className="w-64 h-full bg-white rounded-3xl shadow-sm hidden md:flex flex-col overflow-hidden relative">
       <div className="h-24 flex items-center px-8">
         <div className="flex items-center gap-2">
-          <Image src="/logo-black.svg" alt="IIG Logo" width={100} height={32} className="h-8 w-auto object-contain" />
+          <Image src="/logo-black.svg" alt="IIG Logo" width={100} height={32} priority className="h-8 w-auto object-contain" />
         </div>
       </div>
       
