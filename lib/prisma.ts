@@ -16,9 +16,9 @@ function createPrismaClient(): PrismaClient {
     user: url.username,
     password: url.password,
     database: url.pathname.replace('/', ''),
-    connectionLimit: 3,   // shared host: keep connections low
-    idleTimeout: 60,      // release idle connections after 60s
-    acquireTimeout: 30000,
+    connectionLimit: process.env.DB_CONNECTION_LIMIT ? Number(process.env.DB_CONNECTION_LIMIT) : 10,
+    idleTimeout: 30,      // release idle connections after 30s
+    acquireTimeout: 10000,
     connectTimeout: 10000,
   })
   return new PrismaClient({ adapter })
@@ -31,7 +31,7 @@ export function getPrisma(): PrismaClient {
   if (globalForPrisma.prisma) return globalForPrisma.prisma
   if (!_prisma) {
     _prisma = createPrismaClient()
-    if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = _prisma
+    globalForPrisma.prisma = _prisma
   }
   return _prisma
 }

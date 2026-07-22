@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, ArrowLeft, Loader2, Check, FileText, Download, Plus } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Loader2, Check, FileText, Plus, Search, User, Mail, Phone, Building } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { toast } from 'sonner'
 
 type Step = 1 | 2 | 3 | 4
@@ -129,7 +129,6 @@ export default function CreateProposalPage() {
 
   const images = projectMedia.filter((m: any) => m.type === 'IMAGE')
   
-  // Also include the unit's floor plan as an available image to select
   if (selectedUnit?.floorPlanUrl && !images.find((m: any) => m.url === selectedUnit.floorPlanUrl)) {
     images.push({ id: 'floorplan', url: selectedUnit.floorPlanUrl, type: 'IMAGE' })
   }
@@ -138,133 +137,227 @@ export default function CreateProposalPage() {
     setSelectedImages(prev => prev.includes(url) ? prev.filter(u => u !== url) : [...prev, url])
   }
 
+  const getInitials = (name: string) => {
+    if (!name) return 'C'
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+  }
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">New Proposal</h1>
-        <p className="text-sm text-neutral-500 mt-1">Follow the steps to build a professional sales proposal.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900">New Proposal</h1>
+        <p className="text-neutral-500 mt-1">Follow the steps to build a customized, professional sales proposal.</p>
       </div>
 
       {/* Step Indicator */}
-      <div className="flex items-center gap-2">
-        {([1, 2, 3, 4] as Step[]).map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all ${
-              step > s ? 'bg-green-600 border-green-600 text-white' :
-              step === s ? 'bg-red-600 border-red-600 text-white' :
-              'border-neutral-300 text-neutral-400'
-            }`}>
-              {step > s ? <Check className="w-4 h-4" /> : s}
-            </div>
-            <span className={`text-sm ${step === s ? 'font-medium text-neutral-900' : 'text-neutral-400'}`}>
-              {['Customer', 'Property', 'Unit', 'Customize'][i]}
-            </span>
-            {i < 3 && <div className={`flex-1 h-px w-8 ${step > s ? 'bg-green-500' : 'bg-neutral-200'}`} />}
-          </div>
-        ))}
+      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
+        <div className="flex items-center justify-between">
+          {[
+            { s: 1, title: 'Customer', desc: 'Select or add customer' },
+            { s: 2, title: 'Property', desc: 'Select developer & project' },
+            { s: 3, title: 'Unit', desc: 'Select available unit' },
+            { s: 4, title: 'Customize', desc: 'Price, options & summary' },
+          ].map((item, idx) => {
+            const isCompleted = step > item.s
+            const isCurrent = step === item.s
+
+            return (
+              <div key={item.s} className="flex-1 flex items-center">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all shadow-sm ${
+                    isCompleted ? 'bg-green-600 text-white' :
+                    isCurrent ? 'bg-red-600 text-white ring-4 ring-red-100' :
+                    'bg-neutral-100 text-neutral-400 border border-neutral-200'
+                  }`}>
+                    {isCompleted ? <Check className="w-5 h-5" /> : item.s}
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <p className={`text-sm font-semibold leading-none ${isCurrent ? 'text-neutral-900' : isCompleted ? 'text-green-700' : 'text-neutral-400'}`}>
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-neutral-400 mt-1 font-normal">{item.desc}</p>
+                  </div>
+                </div>
+                {idx < 3 && (
+                  <div className={`flex-1 h-0.5 mx-4 transition-colors ${step > item.s ? 'bg-green-500' : 'bg-neutral-200'}`} />
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* ─── STEP 1: CUSTOMER ─── */}
       {step === 1 && (
-        <Card className="shadow-sm">
-          <CardHeader><CardTitle>Select or Create Customer</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-3">
-              <Button variant={!isNewCustomer ? 'default' : 'outline'} onClick={() => setIsNewCustomer(false)}>Existing Customer</Button>
-              <Button variant={isNewCustomer ? 'default' : 'outline'} onClick={() => setIsNewCustomer(true)}>New Customer</Button>
+        <Card className="shadow-sm border-neutral-200">
+          <CardHeader>
+            <CardTitle className="text-xl">Select or Create Customer</CardTitle>
+            <CardDescription>Choose an existing customer lead or enter new customer details.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="inline-flex p-1 bg-neutral-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setIsNewCustomer(false)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${!isNewCustomer ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600 hover:text-neutral-900'}`}
+              >
+                Existing Customer
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsNewCustomer(true)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${isNewCustomer ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600 hover:text-neutral-900'}`}
+              >
+                New Customer
+              </button>
             </div>
 
             {!isNewCustomer ? (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label>Search by name, email or phone</Label>
-                  <Input placeholder="Type to search..." value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customerSearch" className="font-semibold text-neutral-800">Search Lead by Name, Email, or Phone</Label>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3.5 top-3 text-neutral-400" />
+                    <Input
+                      id="customerSearch"
+                      placeholder="Start typing name, email or phone number..."
+                      value={customerSearch}
+                      onChange={e => {
+                        setCustomerSearch(e.target.value)
+                        if (selectedCustomer && e.target.value !== selectedCustomer.name) {
+                          setSelectedCustomer(null)
+                        }
+                      }}
+                      className="pl-10 h-11"
+                    />
+                  </div>
                 </div>
-                {!selectedCustomer && (
-                  <div className="border border-neutral-200 rounded-lg overflow-hidden bg-white mt-2">
+
+                {selectedCustomer ? (
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-green-50 border border-green-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-green-600 text-white font-semibold flex items-center justify-center text-sm">
+                        {getInitials(selectedCustomer.name)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-neutral-900 text-base flex items-center gap-2">
+                          {selectedCustomer.name}
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">Selected</span>
+                        </p>
+                        <p className="text-xs text-neutral-600 flex items-center gap-3 mt-0.5">
+                          {selectedCustomer.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {selectedCustomer.email}</span>}
+                          {selectedCustomer.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedCustomer.phone}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-700 font-medium" onClick={() => { setSelectedCustomer(null); setCustomerSearch('') }}>
+                      Change Selection
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white">
+                    <div className="bg-neutral-50 px-4 py-2 border-b border-neutral-200 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                      {customerSearch ? `Search Results for "${customerSearch}"` : 'Recent Customers / Leads'}
+                    </div>
+
                     {isSearchingCustomers ? (
-                      <div className="p-4 text-sm text-neutral-500 text-center">Loading customers...</div>
+                      <div className="p-8 text-center text-sm text-neutral-500 flex justify-center items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-red-600" /> Searching customer database...
+                      </div>
                     ) : searchResults.length > 0 ? (
-                      searchResults.map((c: any) => (
-                        <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name) }}
-                          className={`w-full flex items-start p-4 text-left hover:bg-neutral-50 border-b last:border-b-0 transition-colors`}>
-                          <div>
-                            <p className="font-medium text-sm">{c.name}</p>
-                            <p className="text-xs text-neutral-500">{c.email} {c.phone && `· ${c.phone}`}</p>
-                          </div>
-                        </button>
-                      ))
+                      <div className="divide-y divide-neutral-100 max-h-64 overflow-y-auto">
+                        {searchResults.map((c: any) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name) }}
+                            className="w-full flex items-center justify-between p-3.5 text-left hover:bg-red-50/50 transition-colors group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-700 group-hover:bg-red-100 group-hover:text-red-700 font-semibold flex items-center justify-center text-xs transition-colors">
+                                {getInitials(c.name)}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-sm text-neutral-900 group-hover:text-red-700 transition-colors">{c.name}</p>
+                                <p className="text-xs text-neutral-500 flex items-center gap-3">
+                                  {c.email && <span>{c.email}</span>}
+                                  {c.phone && <span>· {c.phone}</span>}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs font-medium text-neutral-400 group-hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all">
+                              Select →
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     ) : (
-                      <div className="p-4 text-sm text-neutral-500 text-center">
-                        No customers found. Try a different search or create a new customer.
+                      <div className="p-8 text-center space-y-2">
+                        <p className="text-sm font-medium text-neutral-700">No matching customers found</p>
+                        <p className="text-xs text-neutral-400">Try searching a different name, email or phone number, or switch to "New Customer".</p>
                       </div>
                     )}
                   </div>
                 )}
-                {selectedCustomer && (
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-green-50 border border-green-200 text-sm mt-4">
-                    <div>
-                      <p className="font-medium text-green-800">✓ {selectedCustomer.name}</p>
-                      <p className="text-green-700">{selectedCustomer.email} {selectedCustomer.phone && `· ${selectedCustomer.phone}`}</p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => { setSelectedCustomer(null); setCustomerSearch('') }}>
-                      Change
-                    </Button>
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1"><Label>Full Name *</Label><Input value={newCustomerForm.name} onChange={e => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })} /></div>
-                <div className="space-y-1"><Label>Email</Label><Input type="email" value={newCustomerForm.email} onChange={e => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })} /></div>
-                <div className="space-y-1"><Label>Phone</Label><Input value={newCustomerForm.phone} onChange={e => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })} /></div>
-                <div className="space-y-1"><Label>Nationality</Label><Input value={newCustomerForm.nationality} onChange={e => setNewCustomerForm({ ...newCustomerForm, nationality: e.target.value })} /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-1"><Label>Full Name *</Label><Input placeholder="Customer name" value={newCustomerForm.name} onChange={e => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })} /></div>
+                <div className="space-y-1"><Label>Email</Label><Input type="email" placeholder="customer@example.com" value={newCustomerForm.email} onChange={e => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })} /></div>
+                <div className="space-y-1"><Label>Phone</Label><Input placeholder="+971 50 123 4567" value={newCustomerForm.phone} onChange={e => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })} /></div>
+                <div className="space-y-1"><Label>Nationality</Label><Input placeholder="e.g. UAE, UAE / Expat" value={newCustomerForm.nationality} onChange={e => setNewCustomerForm({ ...newCustomerForm, nationality: e.target.value })} /></div>
                 <div className="space-y-1 md:col-span-2"><Label>Lead Source</Label>
                   <select value={newCustomerForm.source} onChange={e => setNewCustomerForm({ ...newCustomerForm, source: e.target.value })}
-                    className="flex h-9 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm">
-                    <option value="">Select...</option>
+                    className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-red-500">
+                    <option value="">Select Lead Source...</option>
                     {['Direct','Instagram','Facebook','Referral','Walk-in','Website','Other'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
             )}
 
-            <Button onClick={() => setStep(2)} disabled={!isNewCustomer && !selectedCustomer} className="bg-red-600 hover:bg-red-700">
-              Next: Select Property <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+            <div className="flex justify-end pt-4 border-t border-neutral-100">
+              <Button
+                onClick={() => setStep(2)}
+                disabled={!isNewCustomer ? !selectedCustomer : !newCustomerForm.name}
+                className="bg-red-600 hover:bg-red-700 text-white font-medium px-6"
+              >
+                Next: Select Property <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* ─── STEP 2: DEVELOPER + PROJECT ─── */}
       {step === 2 && (
-        <Card className="shadow-sm">
-          <CardHeader><CardTitle>Select Developer & Project</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1"><Label>Developer *</Label>
+        <Card className="shadow-sm border-neutral-200">
+          <CardHeader><CardTitle className="text-xl">Select Developer & Project</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2"><Label className="font-semibold text-neutral-800">Developer *</Label>
               <select value={selectedDeveloperId || ''} onChange={e => { setSelectedDeveloperId(Number(e.target.value)); setSelectedProjectId(null); setSelectedUnit(null) }}
-                className="flex h-9 w-full rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-red-500">
+                className="flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm shadow-sm focus:ring-1 focus:ring-red-500">
                 <option value="">Select developer...</option>
                 {developers.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
 
             {selectedDeveloperId && (
-              <div className="space-y-2">
-                <Label>Published Projects</Label>
+              <div className="space-y-3">
+                <Label className="font-semibold text-neutral-800">Published Projects</Label>
                 {projects.length === 0 ? (
                   <p className="text-sm text-neutral-500">No published projects for this developer.</p>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {projects.map((p: any) => (
-                      <button key={p.id} onClick={() => { setSelectedProjectId(p.id); setSelectedUnit(null) }}
-                        className={`flex items-start p-4 rounded-xl border-2 text-left transition-all ${selectedProjectId === p.id ? 'border-red-500 bg-red-50' : 'border-neutral-200 hover:border-neutral-300'}`}>
+                      <button key={p.id} type="button" onClick={() => { setSelectedProjectId(p.id); setSelectedUnit(null) }}
+                        className={`flex items-start p-4 rounded-xl border-2 text-left transition-all ${selectedProjectId === p.id ? 'border-red-500 bg-red-50/50 shadow-sm' : 'border-neutral-200 hover:border-neutral-300 bg-white'}`}>
                         <div className="flex-1">
-                          <p className="font-semibold text-sm">{p.name}</p>
-                          <p className="text-xs text-neutral-500 mt-0.5">{p.city}, {p.country}</p>
+                          <p className="font-semibold text-base text-neutral-900">{p.name}</p>
+                          <p className="text-xs text-neutral-500 mt-1 flex items-center gap-1"><Building className="w-3 h-3" /> {p.city}, {p.country}</p>
                         </div>
-                        {selectedProjectId === p.id && <Check className="w-4 h-4 text-red-600 mt-1" />}
+                        {selectedProjectId === p.id && <Check className="w-5 h-5 text-red-600 mt-1" />}
                       </button>
                     ))}
                   </div>
@@ -272,9 +365,9 @@ export default function CreateProposalPage() {
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex justify-between pt-4 border-t border-neutral-100">
               <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-2" />Back</Button>
-              <Button onClick={() => setStep(3)} disabled={!selectedProjectId} className="bg-red-600 hover:bg-red-700">
+              <Button onClick={() => setStep(3)} disabled={!selectedProjectId} className="bg-red-600 hover:bg-red-700 text-white">
                 Next: Select Unit <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -284,36 +377,36 @@ export default function CreateProposalPage() {
 
       {/* ─── STEP 3: UNIT ─── */}
       {step === 3 && (
-        <Card className="shadow-sm">
-          <CardHeader><CardTitle>Select Unit</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="shadow-sm border-neutral-200">
+          <CardHeader><CardTitle className="text-xl">Select Unit</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
             {units.filter((u: any) => u.status === 'AVAILABLE').length === 0 ? (
               <p className="text-neutral-500 text-sm">No available units in this project.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {units.filter((u: any) => u.status === 'AVAILABLE').map((unit: any) => (
-                  <button key={unit.id} onClick={() => setSelectedUnit(unit)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${selectedUnit?.id === unit.id ? 'border-red-500 bg-red-50' : 'border-neutral-200 hover:border-neutral-300'}`}>
+                  <button key={unit.id} type="button" onClick={() => setSelectedUnit(unit)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${selectedUnit?.id === unit.id ? 'border-red-500 bg-red-50/50 shadow-sm' : 'border-neutral-200 hover:border-neutral-300 bg-white'}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-sm">Unit {unit.unitNumber}</span>
-                      {selectedUnit?.id === unit.id && <Check className="w-4 h-4 text-red-600" />}
+                      <span className="font-semibold text-base text-neutral-900">Unit {unit.unitNumber}</span>
+                      {selectedUnit?.id === unit.id && <Check className="w-5 h-5 text-red-600" />}
                     </div>
                     {unit.floorPlanUrl && (
-                      <div className="mb-2 h-24 bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
+                      <div className="mb-3 h-28 bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
                         <img src={unit.floorPlanUrl} alt="Floor plan" className="w-full h-full object-cover opacity-80" />
                       </div>
                     )}
                     <p className="text-xs text-neutral-500 capitalize">{unit.type.toLowerCase()} · {unit.bedrooms} bed · {unit.bathrooms} bath</p>
                     <p className="text-xs text-neutral-500">{Number(unit.size).toLocaleString()} m²{unit.floor ? ` · Floor ${unit.floor}` : ''}</p>
-                    <p className="text-sm font-semibold text-neutral-900 mt-2">{Number(unit.price).toLocaleString()} {unit.currency}</p>
+                    <p className="text-base font-bold text-neutral-900 mt-2">{Number(unit.price).toLocaleString()} {unit.currency}</p>
                   </button>
                 ))}
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex justify-between pt-4 border-t border-neutral-100">
               <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4 mr-2" />Back</Button>
-              <Button onClick={() => setStep(4)} disabled={!selectedUnit} className="bg-red-600 hover:bg-red-700">
+              <Button onClick={() => setStep(4)} disabled={!selectedUnit} className="bg-red-600 hover:bg-red-700 text-white">
                 Next: Customize <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -323,24 +416,24 @@ export default function CreateProposalPage() {
 
       {/* ─── STEP 4: CUSTOMIZE & GENERATE ─── */}
       {step === 4 && selectedUnit && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Summary Card */}
           <Card className="shadow-sm bg-neutral-50 border-neutral-200">
-            <CardContent className="p-4">
-              <p className="text-xs text-neutral-500 uppercase font-medium mb-2">Proposal Summary</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div><p className="text-neutral-500 text-xs">Customer</p><p className="font-medium">{selectedCustomer?.name || newCustomerForm.name}</p></div>
-                <div><p className="text-neutral-500 text-xs">Unit</p><p className="font-medium">{selectedUnit.unitNumber}</p></div>
-                <div><p className="text-neutral-500 text-xs">Base Price</p><p className="font-medium">{Number(selectedUnit.price).toLocaleString()} {selectedUnit.currency}</p></div>
-                <div><p className="text-neutral-500 text-xs">Size</p><p className="font-medium">{Number(selectedUnit.size).toLocaleString()} m²</p></div>
+            <CardContent className="p-5">
+              <p className="text-xs text-neutral-500 uppercase font-semibold tracking-wider mb-3">Proposal Summary</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div><p className="text-neutral-500 text-xs">Customer</p><p className="font-semibold text-neutral-900">{selectedCustomer?.name || newCustomerForm.name}</p></div>
+                <div><p className="text-neutral-500 text-xs">Unit</p><p className="font-semibold text-neutral-900">{selectedUnit.unitNumber}</p></div>
+                <div><p className="text-neutral-500 text-xs">Base Price</p><p className="font-semibold text-neutral-900">{Number(selectedUnit.price).toLocaleString()} {selectedUnit.currency}</p></div>
+                <div><p className="text-neutral-500 text-xs">Size</p><p className="font-semibold text-neutral-900">{Number(selectedUnit.size).toLocaleString()} m²</p></div>
               </div>
             </CardContent>
           </Card>
 
           {/* Customizations */}
-          <Card className="shadow-sm">
-            <CardHeader><CardTitle>Customizations</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+          <Card className="shadow-sm border-neutral-200">
+            <CardHeader><CardTitle className="text-xl">Customizations</CardTitle></CardHeader>
+            <CardContent className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1"><Label>Custom Price (optional)</Label><Input type="number" placeholder={String(Number(selectedUnit.price))} value={customPrice} onChange={e => setCustomPrice(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Discount (%)</Label><Input type="number" min={0} max={50} placeholder="0" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} /></div>
@@ -453,7 +546,7 @@ export default function CreateProposalPage() {
                   <Label>Select Images for PDF ({selectedImages.length} selected)</Label>
                   <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                     {images.map((img: any) => (
-                      <button key={img.id} onClick={() => toggleImage(img.url)}
+                      <button key={img.id} type="button" onClick={() => toggleImage(img.url)}
                         className={`relative aspect-square rounded-lg border-2 overflow-hidden transition-all ${selectedImages.includes(img.url) ? 'border-red-500 ring-2 ring-red-200' : 'border-neutral-200'}`}>
                         <img src={img.url} alt="" className="w-full h-full object-cover" />
                         {selectedImages.includes(img.url) && (
@@ -485,9 +578,9 @@ export default function CreateProposalPage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-3">
+          <div className="flex justify-between pt-2">
             <Button variant="outline" onClick={() => setStep(3)}><ArrowLeft className="w-4 h-4 mr-2" />Back</Button>
-            <Button onClick={() => createProposalMutation.mutate()} disabled={createProposalMutation.isPending} className="bg-red-600 hover:bg-red-700">
+            <Button onClick={() => createProposalMutation.mutate()} disabled={createProposalMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white px-6">
               {createProposalMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
               Create Proposal
             </Button>

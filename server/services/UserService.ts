@@ -17,6 +17,10 @@ export class UserService {
     return UserRepository.delete(id)
   }
 
+  static async updatePassword(id: number, newPassword: string) {
+    return UserRepository.updatePassword(id, newPassword)
+  }
+
   static async updateModuleAccess(id: number, overrides: { moduleName: string, accessLevel: 'VIEW' | 'EDIT' | 'RESTRICTED' }[]) {
     return UserRepository.updateModuleAccess(id, overrides)
   }

@@ -40,6 +40,11 @@ export class UserRepository {
     return prisma.user.update({ where: { id }, data })
   }
 
+  static async updatePassword(id: number, newPassword: string) {
+    const hashed = await bcrypt.hash(newPassword, 10)
+    return prisma.user.update({ where: { id }, data: { password: hashed } })
+  }
+
   static async setActive(id: number, isActive: boolean) {
     return prisma.user.update({ where: { id }, data: { isActive } })
   }

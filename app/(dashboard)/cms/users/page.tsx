@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Loader2, UserCheck, UserX, Shield } from 'lucide-react'
+import { Plus, Trash2, Loader2, UserCheck, UserX, Shield, Key } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 function AccessModal({ user, onClose, queryClient }: any) {
   const modules = ['Amenities', 'Customers', 'Developers', 'Media', 'PaymentPlans', 'Projects', 'Settings', 'Templates', 'Units', 'Users']
@@ -93,13 +94,88 @@ function AccessModal({ user, onClose, queryClient }: any) {
   )
 }
 
-import { usePermissions } from '@/hooks/usePermissions'
+function ResetPasswordModal({ user, onClose }: { user: any; onClose: () => void }) {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newPassword) {
+      toast.error('Please enter a new password')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const res = await fetch(`/api/cms/users/${user.id}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update password')
+      toast.success(`Password updated for ${user.name}`)
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Change Password for {user.name}</h2>
+          <p className="text-sm text-neutral-500">{user.email}</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <Label>New Password *</Label>
+            <Input 
+              type="password" 
+              placeholder="Minimum 6 characters" 
+              value={newPassword} 
+              onChange={e => setNewPassword(e.target.value)} 
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Confirm New Password *</Label>
+            <Input 
+              type="password" 
+              placeholder="Re-enter password" 
+              value={confirmPassword} 
+              onChange={e => setConfirmPassword(e.target.value)} 
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={isLoading} className="bg-red-600 hover:bg-red-700 text-white">
+              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Update Password
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 export default function UsersPage() {
   const queryClient = useQueryClient()
   const { hasPermission, isLoading: permissionsLoading } = usePermissions()
   const [isAdding, setIsAdding] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [passwordUser, setPasswordUser] = useState<any>(null)
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', roleId: '' })
 
   const { data: users = [], isLoading } = useQuery({
@@ -189,7 +265,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Users & Access</h1>
-          <p className="text-sm text-neutral-500 mt-1">Manage team members and their roles.</p>
+          <p className="text-sm text-neutral-500 mt-1">Manage team members, permissions, and passwords.</p>
         </div>
         {canEdit && (
           <Button onClick={() => setIsAdding(!isAdding)} className="bg-red-600 hover:bg-red-700 text-white">
@@ -257,6 +333,12 @@ export default function UsersPage() {
                       {canEdit ? (
                         <>
                           <Button variant="ghost" size="icon"
+                            className="text-neutral-400 hover:text-amber-600"
+                            title="Change Password"
+                            onClick={() => setPasswordUser(user)}>
+                            <Key className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon"
                             className="text-neutral-400 hover:text-blue-600"
                             title="Manage Access"
                             onClick={() => setSelectedUser(user)}>
@@ -296,6 +378,13 @@ export default function UsersPage() {
           user={selectedUser} 
           queryClient={queryClient} 
           onClose={() => setSelectedUser(null)} 
+        />
+      )}
+
+      {passwordUser && (
+        <ResetPasswordModal
+          user={passwordUser}
+          onClose={() => setPasswordUser(null)}
         />
       )}
     </div>

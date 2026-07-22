@@ -23,25 +23,46 @@ export class CustomerRepository {
   }
 
   static async search(query: string, where?: { assignedToId?: number }) {
-    const filters: Prisma.CustomerWhereInput[] = [
-      {
-        OR: [
-          { name: { contains: query } },
-          { email: { contains: query } },
-          { phone: { contains: query } },
-        ],
-      }
-    ];
+    const trimmed = (query || '').trim()
+    const searchPattern = `%${trimmed}%`
+    const assignedId = where?.assignedToId
 
-    if (where && where.assignedToId !== undefined) {
-      filters.push({ assignedToId: where.assignedToId });
+    if (trimmed === '') {
+      if (assignedId !== undefined) {
+        return prisma.$queryRaw`
+          SELECT id, name, email, phone, nationality, source, notes, assignedToId, createdAt, updatedAt
+          FROM Customer
+          WHERE assignedToId = ${assignedId}
+          ORDER BY createdAt DESC
+          LIMIT 20
+        ` as Promise<any[]>
+      }
+      return prisma.$queryRaw`
+        SELECT id, name, email, phone, nationality, source, notes, assignedToId, createdAt, updatedAt
+        FROM Customer
+        ORDER BY createdAt DESC
+        LIMIT 20
+      ` as Promise<any[]>
     }
 
-    return prisma.customer.findMany({
-      where: { AND: filters },
-      take: 10,
-      orderBy: { name: 'asc' }
-    })
+    if (assignedId !== undefined) {
+      return prisma.$queryRaw`
+        SELECT id, name, email, phone, nationality, source, notes, assignedToId, createdAt, updatedAt
+        FROM Customer
+        WHERE (name LIKE ${searchPattern} OR email LIKE ${searchPattern} OR phone LIKE ${searchPattern})
+          AND assignedToId = ${assignedId}
+        ORDER BY name ASC
+        LIMIT 20
+      ` as Promise<any[]>
+    }
+
+    return prisma.$queryRaw`
+      SELECT id, name, email, phone, nationality, source, notes, assignedToId, createdAt, updatedAt
+      FROM Customer
+      WHERE (name LIKE ${searchPattern} OR email LIKE ${searchPattern} OR phone LIKE ${searchPattern})
+      ORDER BY name ASC
+      LIMIT 20
+    ` as Promise<any[]>
   }
 
   static async create(data: Prisma.CustomerCreateInput) {
