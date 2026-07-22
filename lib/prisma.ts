@@ -16,10 +16,11 @@ function createPrismaClient(): PrismaClient {
     user: url.username,
     password: url.password,
     database: url.pathname.replace('/', ''),
-    connectionLimit: process.env.DB_CONNECTION_LIMIT ? Number(process.env.DB_CONNECTION_LIMIT) : 10,
-    idleTimeout: 30,      // release idle connections after 30s
-    acquireTimeout: 10000,
-    connectTimeout: 10000,
+    connectionLimit: process.env.DB_CONNECTION_LIMIT ? Number(process.env.DB_CONNECTION_LIMIT) : 5,
+    minimumIdle: 0,       // Do not open 10 connections simultaneously on startup; open on-demand
+    idleTimeout: 60,      // release idle connections after 60s
+    acquireTimeout: 30000, // 30s acquire timeout for shared hosts
+    connectTimeout: 15000,
   })
   return new PrismaClient({ adapter })
 }
