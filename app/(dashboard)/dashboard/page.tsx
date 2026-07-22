@@ -32,19 +32,22 @@ function TrendBadge({ pct }: { pct: number }) {
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const res = await fetch('/api/dashboard/stats')
       if (!res.ok) throw new Error('Failed to load stats')
       return res.json()
-    }
+    },
+    retry: 1,
+    staleTime: 60 * 1000,
   })
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+      <div className="flex flex-col items-center justify-center h-64 gap-2 text-neutral-400">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <p className="text-sm font-medium">Loading dashboard stats...</p>
       </div>
     )
   }

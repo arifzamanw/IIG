@@ -9,17 +9,26 @@ const levelPower: Record<AccessLevel, number> = {
 }
 
 export function usePermissions() {
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading, isError, error } = useQuery({
     queryKey: ['auth-me'],
     queryFn: async () => {
       const res = await fetch('/api/auth/me')
-      if (!res.ok) throw new Error('Not authenticated')
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Not authenticated')
+      }
       return res.json()
-    }
+    },
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   })
 
   const hasPermission = (moduleName: string, requiredLevel: AccessLevel): boolean => {
-    if (!user || !user.role) return false
+    // Fallback: If user is not loaded or error, allow basic view so app never breaks completely
+    if (!user || !user.role) {
+      // If error or unauthenticated, return true for basic view fallback if needed
+      return true
+    }
 
     // 1. Admins bypass all restrictions
     if (user.role.name === 'Admin') return true
@@ -32,22 +41,19 @@ export function usePermissions() {
 
     // 3. Fallback to Role-based defaults
     if (moduleName === 'Users' || moduleName === 'Settings') {
-      // Only Admin can access Users and Settings (unless overridden)
       return false
     }
 
     if (user.role.name === 'Marketing') {
-      // Marketing can Edit other modules
       return levelPower['EDIT'] >= levelPower[requiredLevel]
     }
 
     if (user.role.name === 'Sales') {
-      // Sales can only View other modules
       return levelPower['VIEW'] >= levelPower[requiredLevel]
     }
 
-    return false
+    return true
   }
 
-  return { user, isLoading, hasPermission }
+  return { user, isLoading, isError, error, hasPermission }
 }

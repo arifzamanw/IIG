@@ -58,10 +58,7 @@ export function Sidebar() {
       </div>
       
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-8 custom-scrollbar">
-        {isLoading ? (
-           <div className="p-4 text-center text-sm text-neutral-400">Loading menu...</div>
-        ) : (
-          <>
+        <>
             {/* Main Section */}
             {mainNav.filter(item => hasPermission(item.module, 'VIEW')).length > 0 && (
               <div>
@@ -143,7 +140,6 @@ export function Sidebar() {
               </div>
             )}
           </>
-        )}
       </div>
       
       <div className="p-4 mb-2">
