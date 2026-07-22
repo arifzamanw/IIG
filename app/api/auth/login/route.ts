@@ -37,6 +37,8 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error('[Login Route Error Detail]:', error)
+    console.error('[Login Error Stack]:', error?.stack)
+    console.error('[Login Error Cause]:', error?.cause)
     const msg: string = error?.message ?? ''
     // Pool timeout = database unavailable, not an auth failure
     if (msg.includes('pool timeout') || msg.includes('45028') || error?.cause?.code === 45028) {

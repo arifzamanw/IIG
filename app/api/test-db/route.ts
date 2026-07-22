@@ -40,9 +40,13 @@ export async function GET() {
   // Test 1: single non-pooled connection
   try {
     const conn = await mariadb.createConnection(connConfig)
-    const rows = await conn.query('SELECT USER() as u, @@hostname as h, @@max_connections as mc')
+    const rows = await conn.query('SELECT USER() as u, @@hostname as h')
     await conn.end()
-    results.rawConnection = { status: 'SUCCESS', info: rows[0] }
+    results.rawConnection = {
+      status: 'SUCCESS',
+      user: String(rows[0]?.u ?? ''),
+      host: String(rows[0]?.h ?? ''),
+    }
   } catch (err: any) {
     results.rawConnection = {
       status: 'FAILED',
