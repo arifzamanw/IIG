@@ -16,9 +16,12 @@ function createPrismaClient(): PrismaClient {
     user: url.username,
     password: url.password,
     database: url.pathname.replace('/', ''),
-    connectionLimit: process.env.DB_CONNECTION_LIMIT ? Number(process.env.DB_CONNECTION_LIMIT) : 2,
-    minimumIdle: 0,
-    idleTimeout: 600,
+    // Keep exactly 1 connection alive permanently so it is reused across requests
+    // rather than being torn down and re-opened (which burns max_connections_per_hour)
+    connectionLimit: 1,
+    minimumIdle: 1,
+    // 0 = never evict idle connections — the one persistent connection lives forever
+    idleTimeout: 0,
     acquireTimeout: 30000,
     connectTimeout: 15000,
   })
