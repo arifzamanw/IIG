@@ -14,16 +14,32 @@ function createPrismaClient(): PrismaClient {
     host: url.hostname,
     port: Number(url.port) || 3306,
     user: url.username,
-    password: url.password,
+    password: decodeURIComponent(url.password),
     database: url.pathname.replace('/', ''),
-    // Keep exactly 1 connection alive permanently so it is reused across requests
-    // rather than being torn down and re-opened (which burns max_connections_per_hour)
+
+    // --- Connection pool settings tuned for Hostinger shared MySQL ---
+    // Keep max 1 connection to avoid exceeding max_connections_per_hour.
     connectionLimit: 1,
-    minimumIdle: 1,
-    // 0 = never evict idle connections — the one persistent connection lives forever
-    idleTimeout: 0,
+
+    // Do NOT proactively open connections at startup.
+    // With minimumIdle > 0 the pool enters a retry loop on quota errors, burning
+    // the quota further. With 0, it only opens a connection when a query arrives.
+    minimumIdle: 0,
+
+    // Keep idle connection alive for 8 hours so it is reused across requests.
+    // The reaper only runs when idleTimeout > 0; 28800 seconds keeps the
+    // connection for 8 hours before it is closed by the pool itself.
+    idleTimeout: 28800,
+
+    // Allow more time to acquire on slow shared hosts.
     acquireTimeout: 30000,
+
+    // Socket handshake timeout.
     connectTimeout: 15000,
+
+    // Skip round-trip validation when connection is returned to pool.
+    // This avoids one extra DB query per request.
+    noControlAfterUse: true,
   })
   return new PrismaClient({ adapter })
 }

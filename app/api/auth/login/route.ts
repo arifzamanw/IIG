@@ -36,6 +36,14 @@ export async function POST(request: Request) {
       user: { id: user.id, email: user.email, name: user.name, roleId: user.roleId } 
     })
   } catch (error: any) {
+    const msg: string = error?.message ?? ''
+    // Pool timeout = database unavailable, not an auth failure
+    if (msg.includes('pool timeout') || msg.includes('45028') || error?.cause?.code === 45028) {
+      return NextResponse.json(
+        { error: 'Database temporarily unavailable. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: error.message || 'Authentication failed' }, { status: 401 })
   }
 }
