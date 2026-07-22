@@ -17,29 +17,16 @@ function createPrismaClient(): PrismaClient {
     password: url.password,
     database: url.pathname.replace('/', ''),
     connectionLimit: process.env.DB_CONNECTION_LIMIT ? Number(process.env.DB_CONNECTION_LIMIT) : 2,
-    minimumIdle: 0,       // On-demand connection creation
-    idleTimeout: 600,     // 10 minute idle timeout to reuse connection
+    minimumIdle: 0,
+    idleTimeout: 600,
     acquireTimeout: 30000,
     connectTimeout: 15000,
   })
   return new PrismaClient({ adapter })
 }
 
-// Lazy getter — client is only instantiated on first access (request time, not build time)
-let _prisma: PrismaClient | undefined
+export const prisma = globalForPrisma.prisma ?? (globalForPrisma.prisma = createPrismaClient())
 
 export function getPrisma(): PrismaClient {
-  if (globalForPrisma.prisma) return globalForPrisma.prisma
-  if (!_prisma) {
-    _prisma = createPrismaClient()
-    globalForPrisma.prisma = _prisma
-  }
-  return _prisma
+  return prisma
 }
-
-// Convenience re-export for files that already import { prisma }
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_, prop) {
-    return (getPrisma() as any)[prop]
-  }
-})

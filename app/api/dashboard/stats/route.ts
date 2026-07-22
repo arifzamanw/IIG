@@ -8,7 +8,6 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Non-restricted users (Admin/Marketing) see all data. Restricted (Sales) see only their own.
     const isUserRestricted = isRestricted(user)
     const now = new Date()
     const last30Start = new Date(now)
@@ -16,30 +15,22 @@ export async function GET() {
     const prev30Start = new Date(now)
     prev30Start.setDate(prev30Start.getDate() - 60)
 
-    // Customer stats
     const customerWhere = isUserRestricted ? { assignedToId: user.id } : {}
-    const [totalCustomers, newCustomersLast30, newCustomersPrev30] = await Promise.all([
-      prisma.customer.count({ where: customerWhere }),
-      prisma.customer.count({ where: { ...customerWhere, createdAt: { gte: last30Start } } }),
-      prisma.customer.count({ where: { ...customerWhere, createdAt: { gte: prev30Start, lt: last30Start } } }),
-    ])
-
-    // Proposal stats
     const proposalWhere = isUserRestricted ? { createdById: user.id } : {}
-    const [totalProposals, newProposalsLast30, newProposalsPrev30] = await Promise.all([
-      prisma.proposal.count({ where: proposalWhere }),
-      prisma.proposal.count({ where: { ...proposalWhere, createdAt: { gte: last30Start } } }),
-      prisma.proposal.count({ where: { ...proposalWhere, createdAt: { gte: prev30Start, lt: last30Start } } }),
-    ])
 
-    // Project stats (always global - no user ownership)
-    const [activeProjects, newProjectsLast30, newProjectsPrev30] = await Promise.all([
-      prisma.project.count({ where: { status: { in: ['PLANNING', 'UNDER_CONSTRUCTION'] } } }),
-      prisma.project.count({ where: { createdAt: { gte: last30Start } } }),
-      prisma.project.count({ where: { createdAt: { gte: prev30Start, lt: last30Start } } }),
-    ])
+    // Run queries sequentially over single connection to prevent pool contention
+    const totalCustomers = await prisma.customer.count({ where: customerWhere })
+    const newCustomersLast30 = await prisma.customer.count({ where: { ...customerWhere, createdAt: { gte: last30Start } } })
+    const newCustomersPrev30 = await prisma.customer.count({ where: { ...customerWhere, createdAt: { gte: prev30Start, lt: last30Start } } })
 
-    // Recent proposals
+    const totalProposals = await prisma.proposal.count({ where: proposalWhere })
+    const newProposalsLast30 = await prisma.proposal.count({ where: { ...proposalWhere, createdAt: { gte: last30Start } } })
+    const newProposalsPrev30 = await prisma.proposal.count({ where: { ...proposalWhere, createdAt: { gte: prev30Start, lt: last30Start } } })
+
+    const activeProjects = await prisma.project.count({ where: { status: { in: ['PLANNING', 'UNDER_CONSTRUCTION'] } } })
+    const newProjectsLast30 = await prisma.project.count({ where: { createdAt: { gte: last30Start } } })
+    const newProjectsPrev30 = await prisma.project.count({ where: { createdAt: { gte: prev30Start, lt: last30Start } } })
+
     const recentProposals = await prisma.proposal.findMany({
       where: proposalWhere,
       orderBy: { createdAt: 'desc' },
